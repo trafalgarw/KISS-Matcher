@@ -18,108 +18,49 @@
 # KISS-Matcher Example codes
 
 
+## :package: Prerequisites
+
+To run example codes, we need a) Point Cloud Library (PCL) and b) [TEASER++]() repository
+
+**1. Installation of PCL**
+
+```
+sudo apt install libpcl-dev
+```
+
+**2. TEASER++**
+
+We support TEASER++ installation in an out-of-the-box manner. Please see `../../shellscripts` folder.
+
+```
+bash ../../shellscripts/install_teaserpp.sh
+```
+
+## :gear: How To Build & RUN
+
 ```
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 ```
 
+> All example codes are downloaded when you run `cmake ...`. If you don't want this to happen repeatedly during modification/development, comment out the `include(3rdparty/download_datasets.cmake)` line.
 
-## How to Run Quatro
+## :rocket: How to Run
 
-### Case A. Bunny dataset
-
-```
-OMP_NUM_THREADS=8 ./quatro_cpp_fpfh
-```
-
-
-![](materials/quatro_teaser_bunny.png)
-
-(Red: source, green: target, blue: estimate from Quatro, magenta: estimate from TEASER++. The blue and magenta clouds are overlapped)
-
-```bash
-=====================================
-           Quatro Results
-=====================================
-Error (deg): 0.990611
-Estimated translation (m): 0.00152444
-Time taken (s): 0.010767
-=====================================
-          TEASER++ Results
-=====================================
-Error (deg): 2.2537
-Estimated translation (m): 0.00269122
-Time taken (s): 0.012313
-```
-
-In general, if the yaw rotation is dominant in SO(3), Quatro showed a promising performance. This is because TEASER++ is a non-minimal solver, so some undesirable roll and pitch errors happen.
-
-### Case B. KITTI dataset
-
-The original FPFH for a 3D point cloud captured by a 64-channel LiDAR sensor takes **tens of seconds**, which is too slow. For this reason, we employ voxel-sampled FPFH, which is preceded by voxel-sampling. This is followed by the correspondence test.
+### Example A. Bunny-level
 
 ```
-OMP_NUM_THREADS=48 ./run_kiss_matcher_in_kitti KISS-Matcher
+./run_matching_using_bunngy
 ```
 
+### Example B. Scan-level
+
 ```
-OMP_NUM_THREADS=48 ./run_kiss_matcher_in_kitti FPFH
-```
-
-
----
-
-![](materials/quatro_teaser_kitti.png)
-
-(Red: source, green: target, blue: estimate from Quatro, magenta: estimate from TEASER++. The blue and magenta clouds are overlapped)
-
-Both methods succeeded!
-
-Note that, `optimizedMatching` is way more faster than `advancedMatching` (0.10 < 0.42).
-It may output the command lines as follows:
-
-```commandline
-         [Build KdTree]: 0.019237 sec
-   [Search using FLANN]: 0.060132 sec
-       [Cross checking]: 0.014097 sec
-           [Tuple test]: 0.005469 sec
+./run_kiss_matcher data/Vel16/src.pcd data/Vel16/tgt.pcd 0.3
 ```
 
-In contrast, `advancedMatching` takes almost 0.45 sec, which is **four time slower** than my implementation.
+### Example C. Map-level
 
-```commandline
-   [Build KdTree & matching]: 0.368105 sec
-            [Cross checking]: 0.075848 sec
-                [Tuple test]: 0.010516 sec
-[Set unique correspondences]: 6e-06 sec
-```
-
-Interestingly, `parallel_reduce` of TBB is 7 times faster than single threading cross checking, which was implemented as:
-
-```cpp
-///////////////////////////////////////////
-// Original, single-threaded implementation
-///////////////////////////////////////////
-std::vector<std::pair<int, int>> corres;
-corres.reserve(std::max(nPti, nPtj) / 4); // reserve 1/4 of the maximum number of points, which is heuristic
-
-///////////////////////////
-/// INITIAL MATCHING
-///////////////////////////
-for (int j = 0; j < nPtj; j++) {
-  // `dis` is a squared distance
-  if (dis[j] > thr_dist * thr_dist) { continue; }
-  const int &i = corres_K[j];
-
-  if (i_to_j[i] == -1) {
-    searchKDTree(&feature_tree_j, features_[fi][i], corres_K, dis, 1);
-    i_to_j[i] = corres_K[0];
-    if (corres_K[0] == j) {
-      corres.emplace_back(i, j);
-    }
-  }
-}
-```
 
 ## Citation
 

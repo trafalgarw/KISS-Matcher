@@ -99,9 +99,9 @@ int main(int argc, char** argv) {
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr tgt_colored(new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr est_q_colored(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-  colorize(src_viz, *src_colored, {255, 0, 0});
-  colorize(tgt_viz, *tgt_colored, {0, 255, 0});
-  colorize(est_viz, *est_q_colored, {0, 0, 255});
+  colorize(src_viz, *src_colored, {195, 195, 195});
+  colorize(tgt_viz, *tgt_colored, {89, 167, 230});
+  colorize(est_viz, *est_q_colored, {238, 160, 61});
 
   pcl::visualization::PCLVisualizer viewer1("Simple Cloud Viewer");
   viewer1.addPointCloud<pcl::PointXYZRGB>(src_colored, "src_red");

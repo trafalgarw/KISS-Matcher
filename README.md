@@ -41,7 +41,7 @@ make cppinstall
   In addition, KISS-Matcher requires [ROBIN](https://github.com/MIT-SPARK/ROBIN).
   But it's also automatically linked via [robin.cmake](https://github.com/MIT-SPARK/KISS-Matcher/blob/main/cpp/kiss_matcher/3rdparty/robin/robin.cmake)
 
-  After installation, `kiss_matcher` and `robin` are place in the installation directory using the following commands in the `Makefile`, respectively:
+  After installation, `kiss_matcher` and `robin` are placed in the installation directory using the following commands in the `Makefile`, respectively:
     ```
 	@$(SUDO) cmake --install cpp/kiss_matcher/build
 	@$(SUDO) cmake --install cpp/kiss_matcher/build/_deps/robin-build
@@ -49,9 +49,11 @@ make cppinstall
 </details>
 
 
-#### How To Use in Other Package?
+#### How To Use in Other Package in C++?
 
 See [CMakeLists.txt](https://github.com/MIT-SPARK/KISS-Matcher/blob/main/cpp/examples/CMakeLists.txt) in `cpp/examples`.
+
+---
 
 ### Python
 

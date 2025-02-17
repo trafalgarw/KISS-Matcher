@@ -26,7 +26,6 @@ else (OPENMP_FOUND)
     message("ERROR: OpenMP could not be found.")
 endif (OPENMP_FOUND)
 
-
 option(USE_SYSTEM_TBB "Use system pre-installed oneAPI/tbb" ON)
 include(3rdparty/find_dependencies.cmake)
 include(3rdparty/download_datasets.cmake)
