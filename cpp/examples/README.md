@@ -47,19 +47,87 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 
 ## :rocket: How to Run
 
-### Example A. Bunny-level
+### Example A. How to Use TEASER++ with KISS-Matcher for Registration using Bunny dataset.
 
 ```
 ./run_matching_using_bunngy
 ```
 
-### Example B. Scan-level
+### Example B. Registration from scan-level to map level
+
+**Usage**: Run `./run_kiss_matcher` following template:
+
+```
+./run_kiss_matcher <src_pcd_file> <tgt_pcd_file> <resolution> <yaw_aug_angle (Optional)>
+
+```
+
+<details>
+  <summary><strong>Click to see our detailed example codes</a></strong></summary>
+
+### Example B-1. Registrate two point cloud from Velodyne 16 at MIT campus
 
 ```
 ./run_kiss_matcher data/Vel16/src.pcd data/Vel16/tgt.pcd 0.3
 ```
 
-### Example C. Map-level
+**Result**
+
+![Image](https://github.com/user-attachments/assets/c7d57fd1-24e7-458e-84a8-9b3578cc12dd)
+
+
+
+### Example B-2. Registrate KITTI07 (Orange) and KITTI00 (Cyan) map clouds
+
+```
+./run_kiss_matcher data/KITTI00-to-07/kitti07.pcd data/KITTI00-to-07/kitti00.pcd 2.0
+```
+
+**Result**
+
+![Image](https://github.com/user-attachments/assets/5716f629-19cc-4aa8-b715-70178cca8f20)
+
+### Example B-3. Registrate KITTI00 (Orange) and KITTI360-09 (Cyan) map clouds
+
+```
+./run_kiss_matcher data/KITTI00-to-07/kitti07.pcd data/KITTI00-to-07/kitti00.pcd 2.0
+```
+
+**Result**
+
+![Image](https://github.com/user-attachments/assets/4e569bac-9264-457f-9e85-2664b3b76ed7)
+
+
+### Example B-4. Registrate heterogeneous LiDAR point cloud maps in KAIST05 of HeLiPR dataset
+
+```
+./run_kiss_matcher data/HeLiPR-KAIST05/Aeva.pcd data/HeLiPR-KAIST05/Livox.pcd 2.0 180
+```
+
+**Result**
+
+![Image](https://github.com/user-attachments/assets/4e569bac-9264-457f-9e85-2664b3b76ed7)
+
+
+### Example B-5. Registrate VBR Collosseo train0.pcd and test0.pcd
+
+
+```
+./run_kiss_matcher data/VBR-Collosseo/train0.pcd data/VBR-Collosseo/test0.pcd 2.0
+```
+
+**Result**
+
+![Image](https://github.com/user-attachments/assets/2e84608e-b1c8-4706-8ea9-f1149697cc4b)
+
+
+
+
+</details>
+
+
+
+### Example C. TBU
 
 
 ## Citation
