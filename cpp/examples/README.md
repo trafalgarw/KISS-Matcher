@@ -64,16 +64,25 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 <details>
   <summary><strong>Click to see our detailed example codes</a></strong></summary>
 
-### Example B-1. Perform registration two point clouds from different viewpoints of Velodyne 16 at MIT campus
+### Example B-0. Perform registration two point clouds from different viewpoints of Velodyne 16 at MIT campus
 
 ```
-./run_kiss_matcher data/Vel16/src.pcd data/Vel16/tgt.pcd 0.3
+./run_kiss_matcher data/Vel16/src.pcd data/Vel16/tgt.pcd 0.2
 ```
 
 **Result**
 
 ![Image](https://github.com/user-attachments/assets/c7d57fd1-24e7-458e-84a8-9b3578cc12dd)
 
+### Example B-1. Perform registration two point clouds from different viewpoints of Velodyne 64 in KITTI dataset
+
+```
+./run_kiss_matcher data/Vel64/kitti_000540.pcd data/Vel64/kitti_001319.pcd 0.3
+```
+
+**Result**
+
+![Image](https://github.com/user-attachments/assets/2adfa6d8-d3cb-4bd3-9283-26926f171806)
 
 
 ### Example B-2. Perform registration KITTI07 (Orange) and KITTI00 (Cyan) map clouds

@@ -5,6 +5,7 @@ set(ZIP_DIR "${CMAKE_BINARY_DIR}/zip_files")
 
 set(DROPBOX_FILES
     "https://www.dropbox.com/scl/fi/1lsz6bxwan0sytj87ea9h/Vel16.zip?rlkey=g4jpze2j6iu6hk9ahq0m6t7o3&st=vrfpk4nv&dl=1"
+    "https://www.dropbox.com/scl/fi/weqfi572gbi5z654d56ai/Vel64.zip?rlkey=l9upmgfjx7nhkbgl9du7igrfu&st=4q9gyous&dl=1"
     "https://www.dropbox.com/scl/fi/lnsbaqmbgz0qi1r8ocesd/HeLiPR-KAIST05.zip?rlkey=50jyhl180qpmf1j5jn9ru37ru&st=q0kay7o3&dl=1"
     "https://www.dropbox.com/scl/fi/c6c1jxrld17ywj7x2ok1q/VBR-Collosseo.zip?rlkey=b1sk0xvnntqy8kyw1apob37ob&st=5imrvvwo&dl=1"
     "https://www.dropbox.com/scl/fi/73l59cj5ypfvjrkrc23qx/KITTI00-to-KITTI360.zip?rlkey=pqukxxgpxaq1pugo6dhzq8xa4&st=yns7uolj&dl=1"
@@ -14,6 +15,7 @@ set(DROPBOX_FILES
 
 set(DOWNLOADED_FILES
     "${ZIP_DIR}/Vel16.zip"
+    "${ZIP_DIR}/Vel64.zip"
     "${ZIP_DIR}/HeLiPR-KAIST05.zip"
     "${ZIP_DIR}/VBR-Collosseo.zip"
     "${ZIP_DIR}/KITTI00-to-KITTI360.zip"

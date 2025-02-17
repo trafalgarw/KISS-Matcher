@@ -36,10 +36,6 @@ classifiers = [
 dependencies = [
     "numpy",
     "plyfile",
-    "pydantic>=2",
-    "pydantic-settings",
-    "pyquaternion",
-    "rich",
     "tqdm",
     "typer[all]>=0.6.0",
 ]
@@ -47,11 +43,7 @@ dependencies = [
 [project.optional-dependencies]
 all = [
     "open3d>=0.13",
-    "polyscope>=2.2.1",
-    "ouster-sdk>=0.11",
     "pyntcloud",
-    "PyYAML",
-    "trimesh",
 ]
 test = [
     "pytest",

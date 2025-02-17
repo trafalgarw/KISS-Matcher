@@ -15,13 +15,8 @@
 
 ---
 
-
 # Installation
 
-TBU
-
 ```
-python3 -m pip install --upgrade scikit_build_core setuptools wheel
-
 pip3 install --upgrade pip setuptools wheel scikit-build-core ninja cmake build
 ```
