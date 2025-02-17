@@ -56,7 +56,7 @@ find_package(kiss_matcher REQUIRED)
 ...
 
 # below code is an example
-add_executable(main_benchmark src/benchmark.cpp 
+add_executable(main_benchmark src/benchmark.cpp
         )
 target_include_directories(main_benchmark
         PUBLIC
