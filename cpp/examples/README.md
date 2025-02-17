@@ -65,7 +65,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 <details>
   <summary><strong>Click to see our detailed example codes</a></strong></summary>
 
-### Example B-1. Registrate two point cloud from Velodyne 16 at MIT campus
+### Example B-1. Perform registration two point clouds from different viewpoints of Velodyne 16 at MIT campus
 
 ```
 ./run_kiss_matcher data/Vel16/src.pcd data/Vel16/tgt.pcd 0.3
@@ -77,7 +77,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 
 
 
-### Example B-2. Registrate KITTI07 (Orange) and KITTI00 (Cyan) map clouds
+### Example B-2. Perform registration KITTI07 (Orange) and KITTI00 (Cyan) map clouds
 
 ```
 ./run_kiss_matcher data/KITTI00-to-07/kitti07.pcd data/KITTI00-to-07/kitti00.pcd 2.0
@@ -87,7 +87,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 
 ![Image](https://github.com/user-attachments/assets/5716f629-19cc-4aa8-b715-70178cca8f20)
 
-### Example B-3. Registrate KITTI00 (Orange) and KITTI360-09 (Cyan) map clouds
+### Example B-3. Perform registration KITTI00 (Orange) and KITTI360-09 (Cyan) map clouds
 
 ```
 ./run_kiss_matcher data/KITTI00-to-07/kitti07.pcd data/KITTI00-to-07/kitti00.pcd 2.0
@@ -98,22 +98,47 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 ![Image](https://github.com/user-attachments/assets/4e569bac-9264-457f-9e85-2664b3b76ed7)
 
 
-### Example B-4. Registrate heterogeneous LiDAR point cloud maps in KAIST05 of HeLiPR dataset
+### Example B-4. Perform registration heterogeneous LiDAR point cloud maps in `KAIST05` of the HeLiPR dataset
+
+We're so excited in that initial transformation problem between Heterogeneous LiDAR SLAM now has been solved via KISS-Matcher!
+By setting `<yaw_aug_angle>`, we can check whether it works even in the presence of huge pose discrepancy.
+
+* Aeva-to-Livox
 
 ```
 ./run_kiss_matcher data/HeLiPR-KAIST05/Aeva.pcd data/HeLiPR-KAIST05/Livox.pcd 2.0 180
 ```
 
-**Result**
-
-![Image](https://github.com/user-attachments/assets/4e569bac-9264-457f-9e85-2664b3b76ed7)
-
-
-### Example B-5. Registrate VBR Collosseo train0.pcd and test0.pcd
-
+* Aeva-to-Ouster
 
 ```
-./run_kiss_matcher data/VBR-Collosseo/train0.pcd data/VBR-Collosseo/test0.pcd 2.0
+./run_kiss_matcher data/HeLiPR-KAIST05/Aeva.pcd data/HeLiPR-KAIST05/Ouster.pcd 2.0 180
+```
+
+* Aeva-to-Ouster
+
+```
+./run_kiss_matcher data/HeLiPR-KAIST05/Livox.pcd data/HeLiPR-KAIST05/Ouster.pcd 2.0 180
+```
+
+
+**Result**
+
+![Image](https://github.com/user-attachments/assets/9427e089-44f1-40e3-bc44-cc66f0c8e17c)
+
+
+### Example B-5. Perform registration `Collosseo test0` (Orange) and `train0` (Cyan) sequence maps of the VBR dataset
+
+In this example, there are non-negligible pitch and roll rotation. So, please set
+
+```
+config.use_quatro_ = false;
+```
+
+and then `make -j 48` again to re-build `run_kiss_matcher`. Then, run the below command:
+
+```
+./run_kiss_matcher data/VBR-Collosseo/test0.pcd data/VBR-Collosseo/train.pcd 2.0
 ```
 
 **Result**
@@ -121,11 +146,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 ![Image](https://github.com/user-attachments/assets/2e84608e-b1c8-4706-8ea9-f1149697cc4b)
 
 
-
-
 </details>
-
-
 
 ### Example C. TBU
 
