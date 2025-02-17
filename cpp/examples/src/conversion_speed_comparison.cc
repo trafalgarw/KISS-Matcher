@@ -86,26 +86,5 @@ int main(int argc, char** argv) {
   std::cout << "Conversion time (Direct Eigen-map to std::vector): " << conversion_time << " ms"
             << std::endl;
 
-  // In my desktop, outputs are as follows:
-  // > ./conversion_speed_comparison
-  // /media/shapelim/UX960NVMe1/kiss-matcher-viz/vbr-colosseo/target.pcd Time taken (raw): 3.2675 ms
-  // Time taken (getVector3fMap): 3.55843 ms
-  // Conversion time (Memcpy): 3.72122 ms
-  // Time taken (Eigen-map): 0.003686 ms
-  // 3, 755658
-  // Conversion time (map then assign): 2.95778 ms
-  // Conversion time (Direct Eigen-map to std::vector): 3.24112 ms
-  //
-  // > ./conversion_speed_comparison
-  // /media/shapelim/UX960NVMe1/kiss-matcher-viz/vbr-colosseo/target.pcd Time taken (raw): 2.64728
-  // ms Time taken (getVector3fMap): 3.03716 ms Conversion time (Memcpy): 3.43321 ms Time taken
-  // (Eigen-map): 0.003375 ms 3, 755658 Conversion time (map then assign): 2.82686 ms Conversion
-  // time (Direct Eigen-map to std::vector): 3.02605 ms
-  //
-  // > ./conversion_speed_comparison
-  // /media/shapelim/UX960NVMe1/kiss-matcher-viz/vbr-colosseo/target.pcd Time taken (raw): 3.53218
-  // ms Time taken (getVector3fMap): 3.83581 ms Conversion time (Memcpy): 4.02746 ms Time taken
-  // (Eigen-map): 0.005919 ms 3, 755658 Conversion time (map then assign): 3.02897 ms Conversion
-  // time (Direct Eigen-map to std::vector): 3.82188 ms
   return 0;
 }
