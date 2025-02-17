@@ -7,16 +7,8 @@
 .idea/
 .vscode/
 
-install/
-log/
-results/
-wheelhouse/
-_skbuild/
-.gitlab-ci-local/
-.polyscope.ini
-imgui.ini
-
-install/
+*/install/
+install/*
 log/
 results/
 wheelhouse/
@@ -29,9 +21,15 @@ cpp/examples/cmake-build-debug*/
 cpp/examples/cmake-build-release*/
 cpp/examples/build*/
 cpp/examples/CMakeFiles/
-
 cpp/examples/.idea/
 cpp/examples/.vscode/
+
+cpp/kiss_matcher/cmake-build-debug*/
+cpp/kiss_matcher/cmake-build-release*/
+cpp/kiss_matcher/build*/
+cpp/kiss_matcher/CMakeFiles/
+cpp/kiss_matcher/.idea/
+cpp/kiss_matcher/.vscode/
 
 compile_commands.json
 */compile_commands.json
