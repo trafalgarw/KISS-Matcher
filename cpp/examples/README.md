@@ -59,7 +59,6 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 
 ```
 ./run_kiss_matcher <src_pcd_file> <tgt_pcd_file> <resolution> <yaw_aug_angle (Optional)>
-
 ```
 
 <details>
@@ -147,6 +146,8 @@ and then `make -j 48` again to re-build `run_kiss_matcher`. Then, run the below 
 
 
 </details>
+
+> :warning: We have confirmed that the PCL visualizer triggers a segmentation fault when no GPU is available. In this case, all warped clouds are saved as ${SRC_NAME}_warped.pcd, and we recommend using other visualization tools, such as CloudCompare, for visualization.
 
 ### Example C. TBU
 
