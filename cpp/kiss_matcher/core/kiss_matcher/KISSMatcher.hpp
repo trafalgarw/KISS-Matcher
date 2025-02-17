@@ -61,11 +61,22 @@ struct KISSMatcherConfig {
                     const float thr_linearity      = 1.0,
                     const int num_max_corr         = 5000,
                     // Below params just works in general cases
-                    const float normal_r_gain              = 3.0,
-                    const float fpfh_r_gain                = 5.0,
+                    const float normal_r_gain = 3.0,
+                    const float fpfh_r_gain   = 5.0,
+                    // The smaller, more conservative
                     const float robin_noise_bound_gain     = 1.0,
-                    const float solver_noise_bound_gain    = 0.5,
+                    const float solver_noise_bound_gain    = 0.75,
                     const bool enable_noise_bound_clamping = true) {
+    if (voxel_size < 5e-3) {
+      throw std::runtime_error(
+          "Too small voxel size has been given. Please check your voxel size.");
+    }
+
+    if (robin_noise_bound_gain < solver_noise_bound_gain) {
+      throw std::runtime_error(
+          "`solver_noise_bound_gain` should be smaller than `robin_noise_bound_gain`.");
+    }
+
     voxel_size_         = voxel_size;
     use_voxel_sampling_ = use_voxel_sampling;
     use_quatro_         = use_quatro;
@@ -80,12 +91,20 @@ struct KISSMatcherConfig {
 
     robin_noise_bound_  = voxel_size_ * robin_noise_bound_gain_;
     solver_noise_bound_ = voxel_size_ * solver_noise_bound_gain_;
-    if ((robin_noise_bound_ > 1.0 || solver_noise_bound_ > 1.0) && enable_noise_bound_clamping) {
+
+    if ((robin_noise_bound_ > 1.0) && enable_noise_bound_clamping) {
       std::cout
-          << "\033[1;33m[Warning] Too large noise bound has been set.\n"
+          << "\033[1;33m[Warning] Too large `robin_noise_bound_` has been set.\n"
           << "Empirically, 1.0 tends to work better for large-scale maps.\n"
           << "If you do not want to clamp these values, disable `enable_noise_clamping`.\n\033[0m";
-      robin_noise_bound_  = 1.0;
+      robin_noise_bound_ = 1.0;
+    }
+
+    if ((solver_noise_bound_ > 1.0) && enable_noise_bound_clamping) {
+      std::cout
+          << "\033[1;33m[Warning] Too large `solver_noise bound_` has been set.\n"
+          << "Empirically, 1.0 tends to work better for large-scale maps.\n"
+          << "If you do not want to clamp these values, disable `enable_noise_clamping`.\n\033[0m";
       solver_noise_bound_ = 1.0;
     }
   }
