@@ -20,7 +20,7 @@
 
 ## :package: Prerequisites
 
-To run example codes, we need a) Point Cloud Library (PCL) and b) [TEASER++]() repository
+To run example codes, in addition to installation of KISS-Matcher (run `make cppinstall` first), we need a) Point Cloud Library (PCL) and b) [TEASER++]() repository
 
 **1. Installation of PCL**
 
@@ -33,12 +33,25 @@ sudo apt install libpcl-dev
 We support TEASER++ installation in an out-of-the-box manner. Please see `../../shellscripts` folder.
 
 ```
-bash ../../shellscripts/install_teaserpp.sh
+cd ${MAIN_DIR_OF_KISS_MATCHER_REPOSITORY}
+bash shellscripts/install_teaserpp.sh
 ```
+
+If you 
 
 ## :gear: How To Build & RUN
 
+First, you should install KISS-Matcher as follows:
+
 ```
+cd ${MAIN_DIR_OF_KISS_MATCHER_REPOSITORY}
+make cppinstall
+```
+
+Then, run below commands:
+
+```
+cd cpp/examples/
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 ```
