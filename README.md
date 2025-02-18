@@ -52,8 +52,11 @@ make cppinstall
     ```
 </details>
 
+#### Example codes
 
-#### How To Use in Other Package in C++?
+We provide plentiful scalable registration examples. Please visit our [**cpp/example**](https://github.com/MIT-SPARK/KISS-Matcher/tree/main/cpp/examples) directory and follow the instructions.
+
+#### How To Use in Other Packages in C++?
 
 See [CMakeLists.txt](https://github.com/MIT-SPARK/KISS-Matcher/blob/main/cpp/examples/CMakeLists.txt) in `cpp/examples`.
 
