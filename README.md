@@ -23,6 +23,8 @@
 Run the command below:
 
 ```commandline
+git clone https://github.com/MIT-SPARK/KISS-Matcher.git
+cd KISS-Matcher
 make deps
 ```
 
@@ -31,6 +33,8 @@ make deps
 Run the command below. That's it.
 
 ```commandline
+git clone https://github.com/MIT-SPARK/KISS-Matcher.git
+cd KISS-Matcher
 make cppinstall
 ```
 
