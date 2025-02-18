@@ -70,7 +70,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j 48
 ### Example A. How to Use TEASER++ with KISS-Matcher for Registration using Bunny dataset.
 
 ```
-./run_matching_using_bunngy
+./run_matching_using_bunny
 ```
 
 ### Example B. Registration from scan-level to map level
