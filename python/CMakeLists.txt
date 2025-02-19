@@ -34,8 +34,9 @@ else()
   include(FetchContent)
   FetchContent_Declare(
     ext_kiss_matcher_core PREFIX kiss_matcher
-    URL https://github.com/LimHyungTae/kiss-matcher/archive/refs/tags/v0.3.1.tar.gz SOURCE_SUBDIR
-        cpp/kiss_matcher)
+    GIT_REPOSITORY https://github.com/MIT-SPARK/KISS-Matcher
+    GIT_TAG main
+    SOURCE_SUBDIR cpp/kiss_matcher)
   FetchContent_MakeAvailable(ext_kiss_matcher_core)
 endif()
 
