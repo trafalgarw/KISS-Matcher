@@ -29,5 +29,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "👋 Thanks for your issue! However, it looks too short to help you in details. Could you provide more details such as:\n\n- A clear description of the problem\n- Steps to reproduce\n- Expected vs. actual behavior\n- Your environment (OS, software version, etc.)\n\nThis will help us investigate the issue effectively. Thanks! 🚀"
+              body: "👋 Thanks for your issue! However, it looks too short to help you in details. Could you provide more details such as:\n\n- A clear description of the problem\n- Steps to reproduce\n- Expected vs. actual behavior\n- **Important** The result of visualizing the current situation/problems \n- Your environment (OS, software version, etc.)\n\nThis will help us investigate the issue effectively. Thanks! 🚀"
             })
