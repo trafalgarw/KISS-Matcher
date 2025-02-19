@@ -1,14 +1,10 @@
-______________________________________________________________________
-
+---
 name: Questions
 about: Describe this issue template's purpose here.
 title: "[QUESTION]"
 labels: question
 assignees: ''
-
-______________________________________________________________________
-
-______________________________________________________________________
+---
 
 \*\* PLEASE READ AND DELETE MY MESSAGE\*\*
 
