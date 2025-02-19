@@ -9,7 +9,7 @@
     <br />
   <br />
   <br />
-  <p align="center"><img src="https://github.com/user-attachments/assets/763bafef-c11a-4412-a9f7-f138fc12ff9f" alt="KISS Matcher" width="80%"/></p>
+  <p align="center"><img src="https://github.com/user-attachments/assets/763bafef-c11a-4412-a9f7-f138fc12ff9f" alt="KISS Matcher" width="95%"/></p>
   <p><strong><em>Keep it simple, make it scalable.</em></strong></p>
 </div>
 
