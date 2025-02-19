@@ -148,14 +148,6 @@ By setting `<yaw_aug_angle>`, we can check whether it works even in the presence
 
 ### Example B-5. Perform registration `Collosseo test0` (Orange) and `train0` (Cyan) sequence maps of the VBR dataset
 
-In this example, there are non-negligible pitch and roll rotation. So, please set
-
-```
-config.use_quatro_ = false;
-```
-
-and then `make -j 48` again to re-build `run_kiss_matcher`. Then, run the below command:
-
 ```
 ./run_kiss_matcher data/VBR-Collosseo/test0.pcd data/VBR-Collosseo/train0.pcd 2.0
 ```
