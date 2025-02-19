@@ -3,6 +3,7 @@
 #include <kiss_matcher/FasterPFH.hpp>
 #include <kiss_matcher/GncSolver.hpp>
 #include <kiss_matcher/KISSMatcher.hpp>
+#include <pcl/filters/filter.h>
 #include <pcl/io/pcd_io.h>
 
 #include "quatro/quatro_utils.h"
@@ -44,6 +45,11 @@ int main(int argc, char** argv) {
   std::cout << "Target input: " << tgt_path << "\n";
   int src_load_result = pcl::io::loadPCDFile<pcl::PointXYZ>(src_path, *src_pcl);
   int tgt_load_result = pcl::io::loadPCDFile<pcl::PointXYZ>(tgt_path, *tgt_pcl);
+
+  std::vector<int> src_indices;
+  std::vector<int> tgt_indices;
+  pcl::removeNaNFromPointCloud(*src_pcl, *src_pcl, src_indices);
+  pcl::removeNaNFromPointCloud(*tgt_pcl, *tgt_pcl, tgt_indices);
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr rotated_src_pcl(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::transformPointCloud(*src_pcl, *rotated_src_pcl, yaw_transform);
