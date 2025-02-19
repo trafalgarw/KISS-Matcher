@@ -13,10 +13,24 @@
   <p><strong><em>Keep it simple, make it scalable.</em></strong></p>
 </div>
 
----
+______________________________________________________________________
 
 # Installation
 
+The prerequisites for Pybind11 are just the minimum requirements as follows:"
+
 ```
 pip3 install --upgrade pip setuptools wheel scikit-build-core ninja cmake build
+```
+
+And then, run the following command:
+
+```
+pip3 install -e .
+```
+
+If something goes weird, you can add `verbose` option like this:
+
+```
+pip3 install -e . --verbose
 ```
