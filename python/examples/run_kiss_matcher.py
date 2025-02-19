@@ -122,10 +122,14 @@ if __name__ == "__main__":
     # visualization
     vis = o3d.visualization.Visualizer()
     vis.create_window(window_name="KISS-Matcher Viz",
-                      width=2400,
-                      height=1600,
+                      width=1600,
+                      height=1200,
                       left=300,
                       top=300)
+    vis.get_render_option().point_size = 0.3
+    vis.get_render_option().background_color = np.array([0, 0, 0
+                                                         ])  # Black background
+    vis.get_render_option().light_on = True
 
     vis.add_geometry(src_o3d)
     vis.add_geometry(tgt_o3d)
