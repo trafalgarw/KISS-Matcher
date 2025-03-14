@@ -3,22 +3,65 @@
 #include <kiss_matcher/FasterPFH.hpp>
 #include <kiss_matcher/GncSolver.hpp>
 #include <kiss_matcher/KISSMatcher.hpp>
-#include <pcl/filters/filter.h>
-#include <pcl/io/pcd_io.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/io/ply_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
-//#include "quatro/quatro_utils.h"
-void colorize(const pcl::PointCloud<pcl::PointXYZ> &pc,
-              pcl::PointCloud<pcl::PointXYZRGB> &pc_colored,
-              const std::vector<int> &color) {
+bool readBin(const std::string& filename, pcl::PointCloud<pcl::PointXYZ>& cloud) {
+  std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
+  if (!ifs) {
+    std::cerr << "error: failed to open " << filename << std::endl;
+    return false;
+  }
+
+  std::streamsize points_bytes = ifs.tellg();
+  size_t num_points            = points_bytes / (sizeof(Eigen::Vector4f));
+
+  ifs.seekg(0, std::ios::beg);
+  std::vector<Eigen::Vector4f> points(num_points);
+  ifs.read(reinterpret_cast<char*>(points.data()), sizeof(Eigen::Vector4f) * num_points);
+
+  cloud.clear();
+  cloud.reserve(num_points);
+
+  pcl::PointXYZ point;
+  for (auto& pt : points) {
+    point.x = pt(0);
+    point.y = pt(1);
+    point.z = pt(2);
+    cloud.emplace_back(point);
+  }
+
+  return true;
+}
+
+bool loadPointCloud(const std::string& filepath, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+  std::string extension = std::filesystem::path(filepath).extension().string();
+
+  if (extension == ".pcd") {
+    return pcl::io::loadPCDFile<pcl::PointXYZ>(filepath, *cloud) >= 0;
+  } else if (extension == ".ply") {
+    return pcl::io::loadPLYFile<pcl::PointXYZ>(filepath, *cloud) >= 0;
+  } else if (extension == ".bin") {
+    return readBin(filepath, *cloud);
+  } else {
+    std::cerr << "Unsupported file format: " << extension << std::endl;
+    return false;
+  }
+}
+
+void colorize(const pcl::PointCloud<pcl::PointXYZ>& pc,
+              pcl::PointCloud<pcl::PointXYZRGB>& pc_colored,
+              const std::vector<int>& color) {
   int N = pc.points.size();
 
   pc_colored.clear();
   pcl::PointXYZRGB pt_tmp;
   for (int i = 0; i < N; ++i) {
-    const auto &pt = pc.points[i];
+    const auto& pt = pc.points[i];
     pt_tmp.x       = pt.x;
     pt_tmp.y       = pt.y;
     pt_tmp.z       = pt.z;
@@ -42,7 +85,8 @@ std::vector<Eigen::Vector3f> convertCloudToVec(const pcl::PointCloud<pcl::PointX
 int main(int argc, char** argv) {
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
-              << " <src_pcd_file> <tgt_pcd_file> <resolution> <yaw_aug_angle> <roll_aug_angle>" << std::endl;
+              << " <src_pcd_file> <tgt_pcd_file> <resolution> <yaw_aug_angle> <roll_aug_angle>"
+              << std::endl;
     return -1;
   }
   pcl::PointCloud<pcl::PointXYZ>::Ptr src_pcl(new pcl::PointCloud<pcl::PointXYZ>);
@@ -65,7 +109,7 @@ int main(int argc, char** argv) {
 
   Eigen::Matrix4f roll_transform = Eigen::Matrix4f::Identity();
   if (argc > 5) {
-    float roll_aug_angle = std::stof(argv[5]);             // Yaw angle in degrees
+    float roll_aug_angle = std::stof(argv[5]);              // Yaw angle in degrees
     float roll_rad       = roll_aug_angle * M_PI / 180.0f;  // Convert to radians
 
     roll_transform(1, 1) = std::cos(roll_rad);
@@ -83,8 +127,11 @@ int main(int argc, char** argv) {
 
   std::cout << "Source input: " << src_path << "\n";
   std::cout << "Target input: " << tgt_path << "\n";
-  int src_load_result = pcl::io::loadPCDFile<pcl::PointXYZ>(src_path, *src_pcl);
-  int tgt_load_result = pcl::io::loadPCDFile<pcl::PointXYZ>(tgt_path, *tgt_pcl);
+
+  if (!loadPointCloud(src_path, src_pcl) || !loadPointCloud(tgt_path, tgt_pcl)) {
+    std::cerr << "Error loading point cloud files." << std::endl;
+    return -1;
+  }
 
   std::vector<int> src_indices;
   std::vector<int> tgt_indices;
