@@ -63,8 +63,8 @@ void ROBINMatching::match(const std::string& robin_mode, float tuple_scale, bool
 
   // NOTE(hlim): `2` indicates that we save the two distances between the two closest descriptors.
   int num_candidates = use_ratio_test ? 2 : 1;
-  std::vector<std::array<int, 2>> corres_K(nPtj_, {0,0});
-  std::vector<std::array<int, 2>> corres_K2(nPti_, {0,0});
+  std::vector<std::array<int, 2>> corres_K(nPtj_, {0, 0});
+  std::vector<std::array<int, 2>> corres_K2(nPti_, {0, 0});
   std::vector<std::array<float, 2>> dis_j(nPtj_, {0.0, 0.0});
   std::vector<std::array<float, 2>> dis_i(nPti_, {0.0, 0.0});
 

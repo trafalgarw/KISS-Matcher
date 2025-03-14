@@ -738,7 +738,7 @@ struct array_or_vector_selector<-1, T> {
 template <class Derived,
           typename Distance,
           class DatasetAdaptor,
-          int32_t DIM            = -1,
+          int32_t DIM        = -1,
           typename IndexType = uint32_t>
 class KDTreeBaseClass {
  public:
@@ -767,7 +767,7 @@ class KDTreeBaseClass {
      * so both data fields are never used simultaneously */
     union {
       struct leaf {
-        Offset left, right;            //!< Indices of points in leaf node
+        Offset left, right;  //!< Indices of points in leaf node
       } lr;
       struct nonleaf {
         Dimension divfeat;             //!< Dimension used for subdivision.
@@ -979,7 +979,8 @@ class KDTreeBaseClass {
     Offset right = count - 1;
     for (;;) {
       while (left <= right && dataset_get(obj, vind[ind + left], cutfeat) < cutval) ++left;
-      while (right && left <= right && dataset_get(obj, vind[ind + right], cutfeat) >= cutval) --right;
+      while (right && left <= right && dataset_get(obj, vind[ind + right], cutfeat) >= cutval)
+        --right;
       if (left > right || !right) break;  // "!right" was added to support unsigned Index types
       std::swap(vind[ind + left], vind[ind + right]);
       ++left;
@@ -992,7 +993,8 @@ class KDTreeBaseClass {
     right = count - 1;
     for (;;) {
       while (left <= right && dataset_get(obj, vind[ind + left], cutfeat) <= cutval) ++left;
-      while (right && left <= right && dataset_get(obj, vind[ind + right], cutfeat) > cutval) --right;
+      while (right && left <= right && dataset_get(obj, vind[ind + right], cutfeat) > cutval)
+        --right;
       if (left > right || !right) break;  // "!right" was added to support unsigned Index types
       std::swap(vind[ind + left], vind[ind + right]);
       ++left;

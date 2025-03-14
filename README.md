@@ -37,7 +37,7 @@ cd KISS-Matcher
 make cppinstall
 ```
 
-> [!WARNING]
+> \[!WARNING\]
 > If you encounter the following error:
 >
 > ```

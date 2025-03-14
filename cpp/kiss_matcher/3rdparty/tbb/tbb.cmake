@@ -32,4 +32,3 @@ FetchContent_Declare(TBB
     URL https://github.com/uxlfoundation/oneTBB/archive/refs/tags/v2022.0.0.tar.gz
     OVERRIDE_FIND_PACKAGE)
 FetchContent_MakeAvailable(TBB)
-

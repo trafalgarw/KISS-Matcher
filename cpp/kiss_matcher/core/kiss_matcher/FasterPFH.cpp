@@ -189,7 +189,6 @@ void FasterPFH::ComputeFeature(std::vector<Eigen::Vector3f> &points,
   FilterIndicesCausingNaN(spfh_indices_);
   // auto t_e_n = std::chrono::high_resolution_clock::now();
 
-
   // Initialize the arrays that will store the SPFH signatures
   std::size_t data_size = spfh_indices_.size();
   hist_f1_.clear();
