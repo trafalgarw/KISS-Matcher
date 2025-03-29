@@ -50,6 +50,8 @@
                                       # (i.e., the percentage of correspondences within `corr_dist`).
                                       # A value close to 100% means the source and target are nearly perfectly aligned.
                                       # In cases of partial overlap, this ratio can never reach 100%.
+                                      # If you set `num_submap_keyframes` as 1 (i.e., scan-to-scan matching),
+                                      # it's recommended to use a higher value.
     global_reg:
       enable: true
       # NOTE(hlim): The best value of `num_inliers_threshold` highly depends on `num_submap_keyframes`

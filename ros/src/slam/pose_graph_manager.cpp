@@ -100,8 +100,8 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   sub_scan_ =
       std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(this, "/cloud");
 
-  sub_node_ = std::make_shared<message_filters::Synchronizer<odom_pcd_sync_pol>>(
-      odom_pcd_sync_pol(10), *sub_odom_, *sub_scan_);
+  sub_node_ = std::make_shared<message_filters::Synchronizer<NodeSyncPolicy>>(
+      NodeSyncPolicy(10), *sub_odom_, *sub_scan_);
   sub_node_->registerCallback(std::bind(
       &PoseGraphManager::callbackNode, this, std::placeholders::_1, std::placeholders::_2));
 
@@ -138,40 +138,48 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   RCLCPP_INFO(this->get_logger(), "Main class, starting node...");
 }
 
+PoseGraphManager::~PoseGraphManager() {
+  if (save_map_bag_) {
+    RCLCPP_INFO(this->get_logger(), "NOTE(hlim): skipping final bag save in ROS2 example code.");
+  }
+  if (save_map_pcd_) {
+    pcl::PointCloud<PointType>::Ptr corrected_map(new pcl::PointCloud<PointType>());
+    corrected_map->reserve(keyframes_[0].scan_.size() * keyframes_.size());
+
+    {
+      std::lock_guard<std::mutex> lock(keyframes_mutex_);
+      for (size_t i = 0; i < keyframes_.size(); ++i) {
+        *corrected_map += transformPcd(keyframes_[i].scan_, keyframes_[i].pose_corrected_);
+      }
+    }
+    const auto &voxelized_map = voxelize(corrected_map, save_voxel_res_);
+    pcl::io::savePCDFileASCII<PointType>(package_path_ + "/result.pcd", *voxelized_map);
+    RCLCPP_INFO(this->get_logger(), "Result saved in .pcd format (Destructor).");
+  }
+}
+
+void PoseGraphManager::appendKeyframePose(const PoseGraphNode &node) {
+  odoms_.points.emplace_back(node.pose_(0, 3), node.pose_(1, 3), node.pose_(2, 3));
+
+  corrected_odoms_.points.emplace_back(
+      node.pose_corrected_(0, 3), node.pose_corrected_(1, 3), node.pose_corrected_(2, 3));
+
+  odom_path_.poses.emplace_back(eigenToPoseStamped(node.pose_, map_frame_));
+  corrected_path_.poses.emplace_back(eigenToPoseStamped(node.pose_corrected_, map_frame_));
+  return;
+}
+
 void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPtr &odom_msg,
-                                    const sensor_msgs::msg::PointCloud2::ConstSharedPtr &pcd_msg) {
-  Eigen::Matrix4d last_odom_tf = current_frame_.pose_;
-  current_frame_               = PoseGraphNode(*odom_msg, *pcd_msg, current_keyframe_idx_);
+                                    const sensor_msgs::msg::PointCloud2::ConstSharedPtr &scan_msg) {
+  static size_t latest_keyframe_idx = 0;
+
+  Eigen::Matrix4d lastest_odom = current_frame_.pose_;
+  current_frame_               = PoseGraphNode(*odom_msg, *scan_msg, latest_keyframe_idx);
 
   kiss_matcher::TicToc total_timer;
   kiss_matcher::TicToc local_timer;
 
-  {
-    std::lock_guard<std::mutex> lock(realtime_pose_mutex_);
-    odom_delta_                    = odom_delta_ * last_odom_tf.inverse() * current_frame_.pose_;
-    current_frame_.pose_corrected_ = last_corrected_pose_ * odom_delta_;
-
-    geometry_msgs::msg::PoseStamped ps =
-        eigenToPoseStamped(current_frame_.pose_corrected_, map_frame_);
-    realtime_pose_pub_->publish(ps);
-
-    geometry_msgs::msg::TransformStamped transform_stamped;
-    transform_stamped.header.stamp    = odom_msg->header.stamp;
-    transform_stamped.header.frame_id = map_frame_;
-    transform_stamped.child_frame_id = base_frame_.empty() ? pcd_msg->header.frame_id : base_frame_;
-    Eigen::Quaterniond q(current_frame_.pose_corrected_.block<3, 3>(0, 0));
-    transform_stamped.transform.translation.x = current_frame_.pose_corrected_(0, 3);
-    transform_stamped.transform.translation.y = current_frame_.pose_corrected_(1, 3);
-    transform_stamped.transform.translation.z = current_frame_.pose_corrected_(2, 3);
-    transform_stamped.transform.rotation.x    = q.x();
-    transform_stamped.transform.rotation.y    = q.y();
-    transform_stamped.transform.rotation.z    = q.z();
-    transform_stamped.transform.rotation.w    = q.w();
-    tf_broadcaster_->sendTransform(transform_stamped);
-  }
-
-  scan_pub_->publish(
-      toROSMsg(transformPcd(current_frame_.scan_, current_frame_.pose_corrected_), map_frame_));
+  visualizeCurrentData(lastest_odom, odom_msg->header.stamp, scan_msg->header.frame_id);
 
   if (!is_initialized_) {
     keyframes_.push_back(current_frame_);
@@ -184,8 +192,8 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
     gtsam_graph_.add(
         gtsam::PriorFactor<gtsam::Pose3>(0, eigenToGtsam(current_frame_.pose_), prior_noise));
 
-    init_esti_.insert(current_keyframe_idx_, eigenToGtsam(current_frame_.pose_));
-    current_keyframe_idx_++;
+    init_esti_.insert(latest_keyframe_idx, eigenToGtsam(current_frame_.pose_));
+    ++latest_keyframe_idx;
     is_initialized_ = true;
 
     RCLCPP_INFO(this->get_logger(), "The first node comes. Initialization complete.");
@@ -202,19 +210,17 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
       gtsam::noiseModel::Diagonal::shared_ptr odom_noise =
           gtsam::noiseModel::Diagonal::Variances(variance_vector);
 
-      gtsam::Pose3 pose_from = eigenToGtsam(keyframes_[current_keyframe_idx_ - 1].pose_corrected_);
+      gtsam::Pose3 pose_from = eigenToGtsam(keyframes_[latest_keyframe_idx - 1].pose_corrected_);
       gtsam::Pose3 pose_to   = eigenToGtsam(current_frame_.pose_corrected_);
 
       {
         std::lock_guard<std::mutex> lock(graph_mutex_);
-        gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(current_keyframe_idx_ - 1,
-                                                            current_keyframe_idx_,
-                                                            pose_from.between(pose_to),
-                                                            odom_noise));
-        init_esti_.insert(current_keyframe_idx_, pose_to);
+        gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(
+            latest_keyframe_idx - 1, latest_keyframe_idx, pose_from.between(pose_to), odom_noise));
+        init_esti_.insert(latest_keyframe_idx, pose_to);
       }
 
-      current_keyframe_idx_++;
+      ++latest_keyframe_idx;
       {
         std::lock_guard<std::mutex> lock(vis_mutex_);
         appendKeyframePose(current_frame_);
@@ -252,12 +258,13 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
 
       const auto t_total = total_timer.toc();
 
-      RCLCPP_INFO(this->get_logger(), "# of Keyframes: %zu", keyframes_.size());
-      RCLCPP_INFO(this->get_logger(),
-                  "Timing (msec) → Total: %.1f | Keyframe: %.1f | Optim.: %.1f",
-                  t_total,
-                  t_keyframe_processing,
-                  t_optim);
+      RCLCPP_INFO(
+          this->get_logger(),
+          "# of Keyframes: %zu. Timing (msec) → Total: %.1f | Keyframe: %.1f | Optim.: %.1f",
+          keyframes_.size(),
+          t_total,
+          t_keyframe_processing,
+          t_optim);
     }
   }
 }
@@ -403,6 +410,43 @@ void PoseGraphManager::detectLoopClosureByNNSearch() {
   RCLCPP_INFO(this->get_logger(), "Loop closure: %.1f msec", lc_timer.toc());
 }
 
+void PoseGraphManager::visualizeCurrentData(const Eigen::Matrix4d &lastest_odom,
+                                            const rclcpp::Time &timestamp,
+                                            const std::string &frame_id) {
+  // NOTE(hlim): Instead of visualizing only when adding keyframes (node-wise), which can feel
+  // choppy, we visualize the current frame every cycle to ensure smoother, real-time visualization.
+  {
+    std::lock_guard<std::mutex> lock(realtime_pose_mutex_);
+    odom_delta_                    = odom_delta_ * lastest_odom.inverse() * current_frame_.pose_;
+    current_frame_.pose_corrected_ = last_corrected_pose_ * odom_delta_;
+
+    geometry_msgs::msg::PoseStamped ps =
+        eigenToPoseStamped(current_frame_.pose_corrected_, map_frame_);
+    realtime_pose_pub_->publish(ps);
+
+    geometry_msgs::msg::TransformStamped transform_stamped;
+    transform_stamped.header.stamp    = timestamp;
+    transform_stamped.header.frame_id = map_frame_;
+    transform_stamped.child_frame_id  = base_frame_.empty() ? frame_id : base_frame_;
+    Eigen::Quaterniond q(current_frame_.pose_corrected_.block<3, 3>(0, 0));
+    transform_stamped.transform.translation.x = current_frame_.pose_corrected_(0, 3);
+    transform_stamped.transform.translation.y = current_frame_.pose_corrected_(1, 3);
+    transform_stamped.transform.translation.z = current_frame_.pose_corrected_(2, 3);
+    transform_stamped.transform.rotation.x    = q.x();
+    transform_stamped.transform.rotation.y    = q.y();
+    transform_stamped.transform.rotation.z    = q.z();
+    transform_stamped.transform.rotation.w    = q.w();
+    tf_broadcaster_->sendTransform(transform_stamped);
+  }
+
+  scan_pub_->publish(
+      toROSMsg(transformPcd(current_frame_.scan_, current_frame_.pose_corrected_), map_frame_));
+  if (!corrected_path_.poses.empty()) {
+    loop_detection_radius_pub_->publish(
+        visualizeLoopDetectionRadius(corrected_path_.poses.back().pose.position));
+  }
+}
+
 void PoseGraphManager::visualizePoseGraph() {
   if (!is_initialized_) {
     return;
@@ -439,9 +483,69 @@ void PoseGraphManager::visualizePoseGraph() {
     std::lock_guard<std::mutex> lock(vis_mutex_);
     path_pub_->publish(odom_path_);
     corrected_path_pub_->publish(corrected_path_);
-    loop_detection_radius_pub_->publish(
-        visualizeLoopDetectionRadius(corrected_path_.poses.back().pose.position));
   }
+}
+
+visualization_msgs::msg::Marker PoseGraphManager::visualizeLoopMarkers(
+    const gtsam::Values &corrected_poses) const {
+  visualization_msgs::msg::Marker edges;
+  edges.type               = visualization_msgs::msg::Marker::LINE_LIST;
+  edges.scale.x            = 0.12f;
+  edges.header.frame_id    = map_frame_;
+  edges.pose.orientation.w = 1.0f;
+  edges.color.r            = 1.0f;
+  edges.color.g            = 1.0f;
+  edges.color.b            = 1.0f;
+  edges.color.a            = 1.0f;
+
+  for (size_t i = 0; i < loop_idx_pairs_.size(); ++i) {
+    if (loop_idx_pairs_[i].first >= corrected_poses.size() ||
+        loop_idx_pairs_[i].second >= corrected_poses.size()) {
+      continue;
+    }
+    gtsam::Pose3 pose  = corrected_poses.at<gtsam::Pose3>(loop_idx_pairs_[i].first);
+    gtsam::Pose3 pose2 = corrected_poses.at<gtsam::Pose3>(loop_idx_pairs_[i].second);
+
+    geometry_msgs::msg::Point p, p2;
+    p.x  = pose.translation().x();
+    p.y  = pose.translation().y();
+    p.z  = pose.translation().z();
+    p2.x = pose2.translation().x();
+    p2.y = pose2.translation().y();
+    p2.z = pose2.translation().z();
+
+    edges.points.push_back(p);
+    edges.points.push_back(p2);
+  }
+  return edges;
+}
+
+visualization_msgs::msg::Marker PoseGraphManager::visualizeLoopDetectionRadius(
+    const geometry_msgs::msg::Point &latest_position) const {
+  visualization_msgs::msg::Marker sphere;
+  sphere.header.frame_id = map_frame_;
+  sphere.id              = 100000;  // arbitrary number
+  sphere.type            = visualization_msgs::msg::Marker::SPHERE;
+  sphere.pose.position.x = latest_position.x;
+  sphere.pose.position.y = latest_position.y;
+  sphere.pose.position.z = latest_position.z;
+  sphere.scale.x         = 2 * loop_detection_radius_;
+  sphere.scale.y         = 2 * loop_detection_radius_;
+  sphere.scale.z         = 2 * loop_detection_radius_;
+  // Use transparanet cyan color
+  sphere.color.r = 0.0;
+  sphere.color.g = 0.824;
+  sphere.color.b = 1.0;
+  sphere.color.a = 0.5;
+
+  return sphere;
+}
+
+bool PoseGraphManager::checkIfKeyframe(const PoseGraphNode &query_node,
+                                       const PoseGraphNode &latest_node) {
+  return keyframe_thr_ < (latest_node.pose_corrected_.block<3, 1>(0, 3) -
+                          query_node.pose_corrected_.block<3, 1>(0, 3))
+                             .norm();
 }
 
 void PoseGraphManager::saveFlagCallback(const std_msgs::msg::String::ConstSharedPtr &msg) {
@@ -512,99 +616,6 @@ void PoseGraphManager::saveFlagCallback(const std_msgs::msg::String::ConstShared
                                          *voxelized_map);
     RCLCPP_INFO(this->get_logger(), "Accumulated map cloud saved in .pcd format");
   }
-}
-
-PoseGraphManager::~PoseGraphManager() {
-  if (save_map_bag_) {
-    RCLCPP_INFO(this->get_logger(), "NOTE(hlim): skipping final bag save in ROS2 example code.");
-  }
-  if (save_map_pcd_) {
-    pcl::PointCloud<PointType>::Ptr corrected_map(new pcl::PointCloud<PointType>());
-    corrected_map->reserve(keyframes_[0].scan_.size() * keyframes_.size());
-
-    {
-      std::lock_guard<std::mutex> lock(keyframes_mutex_);
-      for (size_t i = 0; i < keyframes_.size(); ++i) {
-        *corrected_map += transformPcd(keyframes_[i].scan_, keyframes_[i].pose_corrected_);
-      }
-    }
-    const auto &voxelized_map = voxelize(corrected_map, save_voxel_res_);
-    pcl::io::savePCDFileASCII<PointType>(package_path_ + "/result.pcd", *voxelized_map);
-    RCLCPP_INFO(this->get_logger(), "Result saved in .pcd format (Destructor).");
-  }
-}
-
-void PoseGraphManager::appendKeyframePose(const PoseGraphNode &node) {
-  odoms_.points.emplace_back(node.pose_(0, 3), node.pose_(1, 3), node.pose_(2, 3));
-
-  corrected_odoms_.points.emplace_back(
-      node.pose_corrected_(0, 3), node.pose_corrected_(1, 3), node.pose_corrected_(2, 3));
-
-  odom_path_.poses.emplace_back(eigenToPoseStamped(node.pose_, map_frame_));
-  corrected_path_.poses.emplace_back(eigenToPoseStamped(node.pose_corrected_, map_frame_));
-  return;
-}
-
-visualization_msgs::msg::Marker PoseGraphManager::visualizeLoopMarkers(
-    const gtsam::Values &corrected_poses) const {
-  visualization_msgs::msg::Marker edges;
-  edges.type               = visualization_msgs::msg::Marker::LINE_LIST;
-  edges.scale.x            = 0.12f;
-  edges.header.frame_id    = map_frame_;
-  edges.pose.orientation.w = 1.0f;
-  edges.color.r            = 1.0f;
-  edges.color.g            = 1.0f;
-  edges.color.b            = 1.0f;
-  edges.color.a            = 1.0f;
-
-  for (size_t i = 0; i < loop_idx_pairs_.size(); ++i) {
-    if (loop_idx_pairs_[i].first >= corrected_poses.size() ||
-        loop_idx_pairs_[i].second >= corrected_poses.size()) {
-      continue;
-    }
-    gtsam::Pose3 pose  = corrected_poses.at<gtsam::Pose3>(loop_idx_pairs_[i].first);
-    gtsam::Pose3 pose2 = corrected_poses.at<gtsam::Pose3>(loop_idx_pairs_[i].second);
-
-    geometry_msgs::msg::Point p, p2;
-    p.x  = pose.translation().x();
-    p.y  = pose.translation().y();
-    p.z  = pose.translation().z();
-    p2.x = pose2.translation().x();
-    p2.y = pose2.translation().y();
-    p2.z = pose2.translation().z();
-
-    edges.points.push_back(p);
-    edges.points.push_back(p2);
-  }
-  return edges;
-}
-
-visualization_msgs::msg::Marker PoseGraphManager::visualizeLoopDetectionRadius(
-    const geometry_msgs::msg::Point &latest_position) const {
-  visualization_msgs::msg::Marker sphere;
-  sphere.header.frame_id = map_frame_;
-  sphere.id              = 100000;  // arbitrary number
-  sphere.type            = visualization_msgs::msg::Marker::SPHERE;
-  sphere.pose.position.x = latest_position.x;
-  sphere.pose.position.y = latest_position.y;
-  sphere.pose.position.z = latest_position.z;
-  sphere.scale.x         = 2 * loop_detection_radius_;
-  sphere.scale.y         = 2 * loop_detection_radius_;
-  sphere.scale.z         = 2 * loop_detection_radius_;
-  // Use transparanet cyan color
-  sphere.color.r = 0.0;
-  sphere.color.g = 0.824;
-  sphere.color.b = 1.0;
-  sphere.color.a = 0.5;
-
-  return sphere;
-}
-
-bool PoseGraphManager::checkIfKeyframe(const PoseGraphNode &pose_pcd_in,
-                                       const PoseGraphNode &latest_pose_pcd) {
-  return keyframe_thr_ < (latest_pose_pcd.pose_corrected_.block<3, 1>(0, 3) -
-                          pose_pcd_in.pose_corrected_.block<3, 1>(0, 3))
-                             .norm();
 }
 
 // ----------------------------------------------------------------------
