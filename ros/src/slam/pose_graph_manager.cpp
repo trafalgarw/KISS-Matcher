@@ -623,7 +623,14 @@ void PoseGraphManager::saveFlagCallback(const std_msgs::msg::String::ConstShared
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions options;
-  rclcpp::spin(std::make_shared<PoseGraphManager>(options));
+
+  auto node = std::make_shared<PoseGraphManager>(options);
+
+  // To allow timer callbacks to run concurrently using multiple threads
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(node);
+  executor.spin();
+
   rclcpp::shutdown();
   return 0;
 }
