@@ -162,6 +162,8 @@ RegOutput LoopClosure::coarseToFineAlignment(const pcl::PointCloud<PointType> &s
   coarse_alignment.block<3, 3>(0, 0)    = solution.rotation.cast<double>();
   coarse_alignment.topRightCorner(3, 1) = solution.translation.cast<double>();
 
+  *coarse_aligned_ = transformPcd(src, coarse_alignment);
+
   const size_t num_inliers = global_reg_handler_->getNumFinalInliers();
   if (config_.verbose_) {
     if (num_inliers > config_.num_inliers_threshold_) {
@@ -180,7 +182,6 @@ RegOutput LoopClosure::coarseToFineAlignment(const pcl::PointCloud<PointType> &s
   if (!solution.valid || num_inliers < config_.num_inliers_threshold_) {
     return reg_output;
   } else {
-    *coarse_aligned_        = transformPcd(src, coarse_alignment);
     const auto &fine_output = icpAlignment(*coarse_aligned_, tgt);
     reg_output              = fine_output;
     reg_output.pose_        = fine_output.pose_ * coarse_alignment;
