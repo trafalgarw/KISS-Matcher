@@ -52,6 +52,7 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 
+#include "../tictoc.hpp"
 #include "slam/loop_closure.h"
 #include "slam/loop_detector.h"
 #include "slam/pose_graph_node.hpp"
@@ -72,12 +73,7 @@ class PoseGraphManager : public rclcpp::Node {
   ~PoseGraphManager();
 
  private:
-  void updateOdomsAndPaths(const kiss_matcher::PoseGraphNode &pose_pcd_in);
-  bool checkIfKeyframe(const kiss_matcher::PoseGraphNode &pose_pcd_in,
-                       const kiss_matcher::PoseGraphNode &latest_pose_pcd);
-  visualization_msgs::msg::Marker visualizeLoopMarkers(const gtsam::Values &corrected_poses) const;
-  visualization_msgs::msg::Marker visualizeLoopDetectionRadius(
-      const geometry_msgs::msg::Point &latest_position) const;
+  void appendKeyframePose(const kiss_matcher::PoseGraphNode &node);
 
   void callbackNode(const nav_msgs::msg::Odometry::ConstSharedPtr &odom_msg,
                     const sensor_msgs::msg::PointCloud2::ConstSharedPtr &pcd_msg);
@@ -87,7 +83,16 @@ class PoseGraphManager : public rclcpp::Node {
   void buildMap();
   void detectLoopClosureByLoopDetector();
   void detectLoopClosureByNNSearch();
-  void publishVisualization();
+
+  void visualizeCurrentData();
+  void visualizePoseGraph();
+
+  visualization_msgs::msg::Marker visualizeLoopMarkers(const gtsam::Values &corrected_poses) const;
+  visualization_msgs::msg::Marker visualizeLoopDetectionRadius(
+      const geometry_msgs::msg::Point &latest_position) const;
+
+  bool checkIfKeyframe(const kiss_matcher::PoseGraphNode &pose_pcd_in,
+                       const kiss_matcher::PoseGraphNode &latest_pose_pcd);
 
   std::string map_frame_;
   std::string base_frame_;
@@ -123,6 +128,8 @@ class PoseGraphManager : public rclcpp::Node {
   int sub_key_num_;
   std::vector<std::pair<size_t, size_t>> loop_idx_pairs_;
   // pose_graph_tools_msgs::msg::PoseGraph loop_msgs_;
+
+  kiss_matcher::TicToc timer_;
 
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
