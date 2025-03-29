@@ -19,6 +19,7 @@
 #include <small_gicp/pcl/pcl_registration.hpp>
 
 #include "rclcpp/rclcpp.hpp"
+#include "slam/loop_candidate.hpp"
 #include "slam/pose_graph_node.hpp"
 #include "slam/utils.hpp"
 
@@ -38,6 +39,7 @@ struct GICPConfig {
 struct LoopClosureConfig {
   bool verbose_                    = false;
   bool enable_global_registration_ = true;
+  bool is_multilayer_env_          = false;
   size_t num_submap_keyframes_     = 11;
   size_t num_inliers_threshold_    = 100;
   double voxel_res_                = 0.1;
@@ -75,8 +77,9 @@ class LoopClosure {
  public:
   explicit LoopClosure(const LoopClosureConfig &config, const rclcpp::Logger &logger);
   ~LoopClosure();
-  int fetchClosestKeyframeIdx(const PoseGraphNode &query_keyframe,
-                              const std::vector<PoseGraphNode> &keyframes);
+  double calculateDistance(const Eigen::Matrix4d &pose1, const Eigen::Matrix4d &pose2);
+  LoopCandidate fetchClosestCandidate(const PoseGraphNode &query_frame,
+                                      const std::vector<PoseGraphNode> &keyframes);
   NodePair setSrcAndTgtCloud(const std::vector<PoseGraphNode> &keyframes,
                              const int src_idx,
                              const int tgt_idx,

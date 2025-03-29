@@ -4,15 +4,22 @@ using namespace kiss_matcher;
 
 PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
     : rclcpp::Node("km_sam", options) {
-  double loop_pub_hz, loop_update_hz, map_update_hz, vis_hz;
+  double loop_pub_hz;
+  double loop_detector_hz;
+  double loop_nnsearch_hz;
+  double map_update_hz;
+  double vis_hz;
+
   LoopClosureConfig lc_config;
+  LoopDetectorConfig ld_config;
   auto &gc = lc_config.gicp_config_;
   auto &mc = lc_config.matcher_config_;
 
   map_frame_             = declare_parameter<std::string>("map_frame", "map");
   base_frame_            = declare_parameter<std::string>("base_frame", "base");
   loop_pub_hz            = declare_parameter<double>("loop_pub_hz", 0.1);
-  loop_update_hz         = declare_parameter<double>("loop_update_hz", 1.0);
+  loop_detector_hz       = declare_parameter<double>("loop_detector_hz", 1.0);
+  loop_nnsearch_hz       = declare_parameter<double>("loop_nnsearch_hz", 1.0);
   loop_pub_delayed_time_ = declare_parameter<double>("loop_pub_delayed_time", 60.0);
   map_update_hz          = declare_parameter<double>("map_update_hz", 0.2);
   vis_hz                 = declare_parameter<double>("vis_hz", 0.5);
@@ -24,6 +31,7 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   keyframe_thr_                    = declare_parameter<double>("keyframe.keyframe_threshold", 1.0);
   lc_config.num_submap_keyframes_  = declare_parameter<int>("keyframe.num_submap_keyframes", 5);
   lc_config.verbose_               = declare_parameter<bool>("loop.verbose", false);
+  lc_config.is_multilayer_env_     = declare_parameter<bool>("loop.is_multilayer_env", false);
   lc_config.loop_detection_radius_ = declare_parameter<double>("loop.loop_detection_radius", 15.0);
   lc_config.loop_detection_timediff_threshold_ =
       declare_parameter<double>("loop.loop_detection_timediff_threshold", 10.0);
@@ -54,6 +62,8 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
 
   loop_closure_          = std::make_shared<LoopClosure>(lc_config, this->get_logger());
   loop_detection_radius_ = lc_config.loop_detection_radius_;
+
+  loop_detector_ = std::make_shared<LoopDetector>(ld_config, this->get_logger());
 
   gtsam::ISAM2Params isam_params_;
   isam_params_.relinearizeThreshold = 0.01;
@@ -87,18 +97,18 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   debug_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/debug_cloud", 10);
 
   sub_odom_ = std::make_shared<message_filters::Subscriber<nav_msgs::msg::Odometry>>(this, "/odom");
-  sub_pcd_ =
+  sub_scan_ =
       std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(this, "/cloud");
 
   sub_node_ = std::make_shared<message_filters::Synchronizer<odom_pcd_sync_pol>>(
-      odom_pcd_sync_pol(10), *sub_odom_, *sub_pcd_);
+      odom_pcd_sync_pol(10), *sub_odom_, *sub_scan_);
   sub_node_->registerCallback(std::bind(
       &PoseGraphManager::callbackNode, this, std::placeholders::_1, std::placeholders::_2));
 
   sub_save_flag_ = this->create_subscription<std_msgs::msg::String>(
       "save_dir", 1, std::bind(&PoseGraphManager::saveFlagCallback, this, std::placeholders::_1));
 
-  // loop_pub_timer_ = this->create_wall_timer(
+  // hydra_loop_timer_ = this->create_wall_timer(
   //   std::chrono::duration<double>(1.0 / loop_pub_hz),
   //   std::bind(&PoseGraphManager::loopPubTimerFunc, this));
 
@@ -106,12 +116,25 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   map_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / map_update_hz),
                                        std::bind(&PoseGraphManager::buildMap, this));
 
-  loop_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / loop_update_hz),
-                                        std::bind(&PoseGraphManager::detectLoopClosure, this));
+  loop_detector_timer_ =
+      this->create_wall_timer(std::chrono::duration<double>(1.0 / loop_detector_hz),
+                              std::bind(&PoseGraphManager::detectLoopClosureByLoopDetector, this));
+
+  loop_nnsearch_timer_ =
+      this->create_wall_timer(std::chrono::duration<double>(1.0 / loop_nnsearch_hz),
+                              std::bind(&PoseGraphManager::detectLoopClosureByNNSearch, this));
 
   vis_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / vis_hz),
                                        std::bind(&PoseGraphManager::publishVisualization, this));
 
+  if (!lc_config.is_multilayer_env_) {
+    RCLCPP_WARN(
+        get_logger(),
+        "'loop.is_multilayer_env' is set to `false`. "
+        "This setting is recommended for outdoor environments to ignore the effect of Z-drift. "
+        "However, if you're running SLAM in an indoor multi-layer environment, "
+        "consider setting it to true to enable full 3D NN search for loop candidates.");
+  }
   RCLCPP_INFO(this->get_logger(), "Main class, starting node...");
 }
 
@@ -299,26 +322,40 @@ void PoseGraphManager::buildMap() {
   }
 }
 
-void PoseGraphManager::detectLoopClosure() {
-  if (!is_initialized_ || keyframes_.empty() || keyframes_.back().processed_) {
+void PoseGraphManager::detectLoopClosureByLoopDetector() {
+  auto &query = keyframes_.back();
+  if (!is_initialized_ || keyframes_.empty() || query.loop_detector_processed_) {
     return;
   }
-  keyframes_.back().processed_ = true;
+  query.loop_detector_processed_ = true;
 
-  auto t1 = high_resolution_clock::now();
-  const int closest_keyframe_idx =
-      loop_closure_->fetchClosestKeyframeIdx(keyframes_.back(), keyframes_);
-  if (closest_keyframe_idx < 0) {
+  auto t1                    = high_resolution_clock::now();
+  const auto &loop_candidate = loop_detector_->fetchLoopCandidate(query, keyframes_);
+  if (!loop_candidate.found_) {
+    return;
+  }
+}
+
+void PoseGraphManager::detectLoopClosureByNNSearch() {
+  auto &query = keyframes_.back();
+  if (!is_initialized_ || keyframes_.empty() || query.nnsearch_processed_) {
+    return;
+  }
+  query.nnsearch_processed_ = true;
+
+  auto t1                    = high_resolution_clock::now();
+  const auto &loop_candidate = loop_closure_->fetchClosestCandidate(query, keyframes_);
+  if (!loop_candidate.found_) {
     return;
   }
 
   const RegOutput &reg_output =
-      loop_closure_->performLoopClosure(keyframes_.back(), keyframes_, closest_keyframe_idx);
+      loop_closure_->performLoopClosure(query, keyframes_, loop_candidate.idx_);
 
   if (reg_output.is_valid_) {
     RCLCPP_INFO(this->get_logger(), "LC accepted. Overlapness: %.3f", reg_output.overlapness_);
-    gtsam::Pose3 pose_from = eigenToGtsam(reg_output.pose_ * keyframes_.back().pose_corrected_);
-    gtsam::Pose3 pose_to   = eigenToGtsam(keyframes_[closest_keyframe_idx].pose_corrected_);
+    gtsam::Pose3 pose_from = eigenToGtsam(reg_output.pose_ * query.pose_corrected_);
+    gtsam::Pose3 pose_to   = eigenToGtsam(keyframes_[loop_candidate.idx_].pose_corrected_);
 
     // TODO(hlim): Parameterize
     auto variance_vector = (gtsam::Vector(6) << 1e-4, 1e-4, 1e-4, 1e-2, 1e-2, 1e-2).finished();
@@ -328,10 +365,10 @@ void PoseGraphManager::detectLoopClosure() {
     {
       std::lock_guard<std::mutex> lock(graph_mutex_);
       gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(
-          keyframes_.back().idx_, closest_keyframe_idx, pose_from.between(pose_to), loop_noise));
+          query.idx_, loop_candidate.idx_, pose_from.between(pose_to), loop_noise));
     }
 
-    loop_idx_pairs_.push_back({keyframes_.back().idx_, closest_keyframe_idx});
+    loop_idx_pairs_.push_back({query.idx_, loop_candidate.idx_});
     loop_added_flag_     = true;
     loop_added_flag_map_ = true;
     loop_added_flag_vis_ = true;

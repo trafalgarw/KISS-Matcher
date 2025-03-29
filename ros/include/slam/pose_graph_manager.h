@@ -53,6 +53,7 @@
 #include <gtsam/slam/PriorFactor.h>
 
 #include "slam/loop_closure.h"
+#include "slam/loop_detector.h"
 #include "slam/pose_graph_node.hpp"
 #include "slam/utils.hpp"
 
@@ -84,7 +85,8 @@ class PoseGraphManager : public rclcpp::Node {
   /**** Timer functions ****/
   // void loopPubTimerFunc();
   void buildMap();
-  void detectLoopClosure();
+  void detectLoopClosureByLoopDetector();
+  void detectLoopClosureByNNSearch();
   void publishVisualization();
 
   std::string map_frame_;
@@ -127,12 +129,16 @@ class PoseGraphManager : public rclcpp::Node {
   pcl::PointCloud<pcl::PointXYZ> odoms_, corrected_odoms_;
   nav_msgs::msg::Path odom_path_, corrected_path_;
 
-  // results
-  bool save_map_bag_ = false, save_map_pcd_ = false, save_in_kitti_format_ = false;
-  double last_lc_time_ = 0.0;
+  bool save_map_bag_         = false;
+  bool save_map_pcd_         = false;
+  bool save_in_kitti_format_ = false;
+  double last_lc_time_       = 0.0;
 
-  // Loop closure
   std::shared_ptr<kiss_matcher::LoopClosure> loop_closure_;
+
+  // NOTE(hlim): We do not provide a loop detector implementation directly,
+  // but you can plug in your own detector via this interface.
+  std::shared_ptr<kiss_matcher::LoopDetector> loop_detector_;
 
   pcl::PointCloud<PointType>::Ptr map_cloud_;
 
@@ -157,13 +163,14 @@ class PoseGraphManager : public rclcpp::Node {
 
   // message_filters
   std::shared_ptr<message_filters::Subscriber<nav_msgs::msg::Odometry>> sub_odom_;
-  std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> sub_pcd_;
+  std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> sub_scan_;
   std::shared_ptr<message_filters::Synchronizer<odom_pcd_sync_pol>> sub_node_;
 
-  // timers
+  // Timers
   rclcpp::TimerBase::SharedPtr hydra_loop_timer_;
   rclcpp::TimerBase::SharedPtr map_timer_;
-  rclcpp::TimerBase::SharedPtr loop_timer_;
+  rclcpp::TimerBase::SharedPtr loop_detector_timer_;
+  rclcpp::TimerBase::SharedPtr loop_nnsearch_timer_;
   rclcpp::TimerBase::SharedPtr vis_timer_;
 };
 
