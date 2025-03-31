@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -88,6 +89,10 @@ class PoseGraphManager : public rclcpp::Node {
                             const std::string &frame_id);
   void visualizePoseGraph();
 
+  void performRegistration();
+
+  void visualizeLoopClosureClouds();
+
   visualization_msgs::msg::Marker visualizeLoopMarkers(const gtsam::Values &corrected_poses) const;
   visualization_msgs::msg::Marker visualizeLoopDetectionRadius(
       const geometry_msgs::msg::Point &latest_position) const;
@@ -105,6 +110,7 @@ class PoseGraphManager : public rclcpp::Node {
   std::mutex realtime_pose_mutex_;
   std::mutex keyframes_mutex_;
   std::mutex graph_mutex_;
+  std::mutex lc_mutex_;
   std::mutex vis_mutex_;
 
   Eigen::Matrix4d last_corrected_pose_ = Eigen::Matrix4d::Identity();
@@ -112,10 +118,12 @@ class PoseGraphManager : public rclcpp::Node {
   kiss_matcher::PoseGraphNode current_frame_;
   std::vector<kiss_matcher::PoseGraphNode> keyframes_;
 
-  bool is_initialized_                        = false;
-  bool loop_added_flag_                       = false;
-  bool loop_added_flag_map_                   = false;
-  bool loop_added_flag_vis_                   = false;
+  bool is_initialized_           = false;
+  bool loop_closure_added_       = false;
+  bool need_map_update_          = false;
+  bool need_graph_vis_update_    = false;
+  bool need_lc_cloud_vis_update_ = false;
+
   std::shared_ptr<gtsam::ISAM2> isam_handler_ = nullptr;
   gtsam::NonlinearFactorGraph gtsam_graph_;
   gtsam::Values init_esti_;
@@ -128,8 +136,10 @@ class PoseGraphManager : public rclcpp::Node {
   double loop_pub_delayed_time_;
   double loop_detection_radius_;  // Only for visualization
   int sub_key_num_;
-  std::vector<std::pair<size_t, size_t>> loop_idx_pairs_;
+
+  std::vector<std::pair<size_t, size_t>> vis_loop_edges_;
   // pose_graph_tools_msgs::msg::PoseGraph loop_msgs_;
+  std::queue<LoopIdxPair> loop_idx_pair_queue_;
 
   kiss_matcher::TicToc timer_;
 
@@ -180,7 +190,9 @@ class PoseGraphManager : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr map_timer_;
   rclcpp::TimerBase::SharedPtr loop_detector_timer_;
   rclcpp::TimerBase::SharedPtr loop_nnsearch_timer_;
-  rclcpp::TimerBase::SharedPtr vis_timer_;
+  rclcpp::TimerBase::SharedPtr graph_vis_timer_;
+  rclcpp::TimerBase::SharedPtr lc_reg_timer_;
+  rclcpp::TimerBase::SharedPtr lc_vis_timer_;
 };
 
 #endif  // KISS_MATCHER_POSE_GRAPH_MANAGER_H

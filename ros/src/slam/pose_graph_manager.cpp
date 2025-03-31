@@ -124,8 +124,17 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
       this->create_wall_timer(std::chrono::duration<double>(1.0 / loop_nnsearch_hz),
                               std::bind(&PoseGraphManager::detectLoopClosureByNNSearch, this));
 
-  vis_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / vis_hz),
-                                       std::bind(&PoseGraphManager::visualizePoseGraph, this));
+  graph_vis_timer_ =
+      this->create_wall_timer(std::chrono::duration<double>(1.0 / vis_hz),
+                              std::bind(&PoseGraphManager::visualizePoseGraph, this));
+
+  lc_reg_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / 100.0),
+                                          std::bind(&PoseGraphManager::performRegistration, this));
+
+  // 20 Hz is enough as long as it's faster than the full registration process.
+  lc_vis_timer_ =
+      this->create_wall_timer(std::chrono::duration<double>(1.0 / 20.0),
+                              std::bind(&PoseGraphManager::visualizeLoopClosureClouds, this));
 
   if (!lc_config.is_multilayer_env_) {
     RCLCPP_WARN(
@@ -231,7 +240,7 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
         std::lock_guard<std::mutex> lock(graph_mutex_);
         isam_handler_->update(gtsam_graph_, init_esti_);
         isam_handler_->update();
-        if (loop_added_flag_) {
+        if (loop_closure_added_) {
           isam_handler_->update();
           isam_handler_->update();
           isam_handler_->update();
@@ -248,12 +257,12 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
             gtsamToEigen(corrected_esti_.at<gtsam::Pose3>(corrected_esti_.size() - 1));
         odom_delta_ = Eigen::Matrix4d::Identity();
       }
-      if (loop_added_flag_) {
+      if (loop_closure_added_) {
         std::lock_guard<std::mutex> lock(keyframes_mutex_);
         for (size_t i = 0; i < corrected_esti_.size(); ++i) {
           keyframes_[i].pose_corrected_ = gtsamToEigen(corrected_esti_.at<gtsam::Pose3>(i));
         }
-        loop_added_flag_ = false;
+        loop_closure_added_ = false;
       }
 
       const auto t_total = total_timer.toc();
@@ -291,7 +300,7 @@ void PoseGraphManager::buildMap() {
   if (map_pub_->get_subscription_count() > 0) {
     {
       std::lock_guard<std::mutex> lock(keyframes_mutex_);
-      if (loop_added_flag_map_) {
+      if (need_map_update_) {
         map_cloud_->clear();
         start_idx = 0;
       }
@@ -314,8 +323,8 @@ void PoseGraphManager::buildMap() {
     map_pub_->publish(toROSMsg(*voxelized_map, map_frame_));
   }
 
-  if (loop_added_flag_map_) {
-    loop_added_flag_map_ = false;
+  if (need_map_update_) {
+    need_map_update_ = false;
   }
 }
 
@@ -327,35 +336,44 @@ void PoseGraphManager::detectLoopClosureByLoopDetector() {
   query.loop_detector_processed_ = true;
 
   kiss_matcher::TicToc ld_timer;
-  const auto &loop_candidate = loop_detector_->fetchLoopCandidate(query, keyframes_);
-  if (!loop_candidate.found_) {
-    return;
+  const auto &loop_idx_pairs = loop_detector_->fetchLoopCandidates(query, keyframes_);
+
+  for (const auto &loop_candidate : loop_idx_pairs) {
+    loop_idx_pair_queue_.push(loop_candidate);
   }
 
   const auto t_ld = ld_timer.toc();
 }
 
 void PoseGraphManager::detectLoopClosureByNNSearch() {
-  kiss_matcher::TicToc lc_timer;
-
   auto &query = keyframes_.back();
   if (!is_initialized_ || keyframes_.empty() || query.nnsearch_processed_) {
     return;
   }
   query.nnsearch_processed_ = true;
 
-  const auto &loop_candidate = loop_closure_->fetchClosestCandidate(query, keyframes_);
-  if (!loop_candidate.found_) {
+  const auto &loop_idx_pairs = loop_closure_->fetchLoopCandidates(query, keyframes_);
+
+  for (const auto &loop_candidate : loop_idx_pairs) {
+    loop_idx_pair_queue_.push(loop_candidate);
+  }
+}
+
+void PoseGraphManager::performRegistration() {
+  kiss_matcher::TicToc reg_timer;
+  if (loop_idx_pair_queue_.empty()) {
     return;
   }
+  const auto [query_idx, match_idx] = loop_idx_pair_queue_.front();
+  loop_idx_pair_queue_.pop();
 
-  const RegOutput &reg_output =
-      loop_closure_->performLoopClosure(query, keyframes_, loop_candidate.idx_);
+  const RegOutput &reg_output = loop_closure_->performLoopClosure(keyframes_, query_idx, match_idx);
+  need_lc_cloud_vis_update_   = true;
 
   if (reg_output.is_valid_) {
     RCLCPP_INFO(this->get_logger(), "LC accepted. Overlapness: %.3f", reg_output.overlapness_);
-    gtsam::Pose3 pose_from = eigenToGtsam(reg_output.pose_ * query.pose_corrected_);
-    gtsam::Pose3 pose_to   = eigenToGtsam(keyframes_[loop_candidate.idx_].pose_corrected_);
+    gtsam::Pose3 pose_from = eigenToGtsam(reg_output.pose_ * keyframes_[query_idx].pose_corrected_);
+    gtsam::Pose3 pose_to   = eigenToGtsam(keyframes_[match_idx].pose_corrected_);
 
     // TODO(hlim): Parameterize
     auto variance_vector = (gtsam::Vector(6) << 1e-4, 1e-4, 1e-4, 1e-2, 1e-2, 1e-2).finished();
@@ -365,13 +383,13 @@ void PoseGraphManager::detectLoopClosureByNNSearch() {
     {
       std::lock_guard<std::mutex> lock(graph_mutex_);
       gtsam_graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(
-          query.idx_, loop_candidate.idx_, pose_from.between(pose_to), loop_noise));
+          query_idx, match_idx, pose_from.between(pose_to), loop_noise));
     }
 
-    loop_idx_pairs_.push_back({query.idx_, loop_candidate.idx_});
-    loop_added_flag_     = true;
-    loop_added_flag_map_ = true;
-    loop_added_flag_vis_ = true;
+    vis_loop_edges_.emplace_back(query_idx, match_idx);
+    loop_closure_added_    = true;
+    need_map_update_       = true;
+    need_graph_vis_update_ = true;
 
     // --------------------------------------------------
     // TODO(hlim): resurrect pose_graph_tools_msgs
@@ -392,7 +410,6 @@ void PoseGraphManager::detectLoopClosureByNNSearch() {
     // loop_msgs_.edges.emplace_back(edge);
     // last_lc_time_ = this->now().seconds();
     // --------------------------------------------------
-
   } else {
     if (reg_output.overlapness_ == 0.0) {
       RCLCPP_WARN(this->get_logger(), "LC rejected. KISS-Matcher failed");
@@ -400,14 +417,7 @@ void PoseGraphManager::detectLoopClosureByNNSearch() {
       RCLCPP_WARN(this->get_logger(), "LC rejected. Overlapness: %.3f", reg_output.overlapness_);
     }
   }
-
-  debug_src_pub_->publish(toROSMsg(loop_closure_->getSourceCloud(), map_frame_));
-  debug_tgt_pub_->publish(toROSMsg(loop_closure_->getTargetCloud(), map_frame_));
-  debug_fine_aligned_pub_->publish(toROSMsg(loop_closure_->getFinalAlignedCloud(), map_frame_));
-  debug_coarse_aligned_pub_->publish(toROSMsg(loop_closure_->getCoarseAlignedCloud(), map_frame_));
-  debug_cloud_pub_->publish(toROSMsg(loop_closure_->getDebugCloud(), map_frame_));
-
-  RCLCPP_INFO(this->get_logger(), "Loop closure: %.1f msec", lc_timer.toc());
+  RCLCPP_INFO(this->get_logger(), "Reg: %.1f msec", reg_timer.toc());
 }
 
 void PoseGraphManager::visualizeCurrentData(const Eigen::Matrix4d &lastest_odom,
@@ -452,7 +462,7 @@ void PoseGraphManager::visualizePoseGraph() {
     return;
   }
 
-  if (loop_added_flag_vis_) {
+  if (need_graph_vis_update_) {
     gtsam::Values corrected_esti_copied;
     pcl::PointCloud<pcl::PointXYZ> corrected_odoms;
     nav_msgs::msg::Path corrected_path;
@@ -468,7 +478,7 @@ void PoseGraphManager::visualizePoseGraph() {
 
       corrected_path.poses.push_back(gtsamToPoseStamped(pose_, map_frame_));
     }
-    if (!loop_idx_pairs_.empty()) {
+    if (!vis_loop_edges_.empty()) {
       loop_detection_pub_->publish(visualizeLoopMarkers(corrected_esti_copied));
     }
     {
@@ -476,7 +486,7 @@ void PoseGraphManager::visualizePoseGraph() {
       corrected_odoms_      = corrected_odoms;
       corrected_path_.poses = corrected_path.poses;
     }
-    loop_added_flag_vis_ = false;
+    need_graph_vis_update_ = false;
   }
 
   {
@@ -484,6 +494,19 @@ void PoseGraphManager::visualizePoseGraph() {
     path_pub_->publish(odom_path_);
     corrected_path_pub_->publish(corrected_path_);
   }
+}
+
+void PoseGraphManager::visualizeLoopClosureClouds() {
+  if (!need_lc_cloud_vis_update_) {
+    return;
+  }
+
+  debug_src_pub_->publish(toROSMsg(loop_closure_->getSourceCloud(), map_frame_));
+  debug_tgt_pub_->publish(toROSMsg(loop_closure_->getTargetCloud(), map_frame_));
+  debug_fine_aligned_pub_->publish(toROSMsg(loop_closure_->getFinalAlignedCloud(), map_frame_));
+  debug_coarse_aligned_pub_->publish(toROSMsg(loop_closure_->getCoarseAlignedCloud(), map_frame_));
+  debug_cloud_pub_->publish(toROSMsg(loop_closure_->getDebugCloud(), map_frame_));
+  need_lc_cloud_vis_update_ = false;
 }
 
 visualization_msgs::msg::Marker PoseGraphManager::visualizeLoopMarkers(
@@ -498,13 +521,13 @@ visualization_msgs::msg::Marker PoseGraphManager::visualizeLoopMarkers(
   edges.color.b            = 1.0f;
   edges.color.a            = 1.0f;
 
-  for (size_t i = 0; i < loop_idx_pairs_.size(); ++i) {
-    if (loop_idx_pairs_[i].first >= corrected_poses.size() ||
-        loop_idx_pairs_[i].second >= corrected_poses.size()) {
+  for (size_t i = 0; i < vis_loop_edges_.size(); ++i) {
+    if (vis_loop_edges_[i].first >= corrected_poses.size() ||
+        vis_loop_edges_[i].second >= corrected_poses.size()) {
       continue;
     }
-    gtsam::Pose3 pose  = corrected_poses.at<gtsam::Pose3>(loop_idx_pairs_[i].first);
-    gtsam::Pose3 pose2 = corrected_poses.at<gtsam::Pose3>(loop_idx_pairs_[i].second);
+    gtsam::Pose3 pose  = corrected_poses.at<gtsam::Pose3>(vis_loop_edges_[i].first);
+    gtsam::Pose3 pose2 = corrected_poses.at<gtsam::Pose3>(vis_loop_edges_[i].second);
 
     geometry_msgs::msg::Point p, p2;
     p.x  = pose.translation().x();

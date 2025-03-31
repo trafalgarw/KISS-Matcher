@@ -19,7 +19,7 @@
 #include <small_gicp/pcl/pcl_registration.hpp>
 
 #include "rclcpp/rclcpp.hpp"
-#include "slam/loop_candidate.hpp"
+#include "slam/loop_types.hpp"
 #include "slam/pose_graph_node.hpp"
 #include "slam/utils.hpp"
 
@@ -39,7 +39,7 @@ class LoopDetector {
  public:
   explicit LoopDetector(const LoopDetectorConfig &config, const rclcpp::Logger &logger);
   ~LoopDetector();
-  LoopCandidate fetchLoopCandidate(const PoseGraphNode &query_frame,
+  LoopIdxPairs fetchLoopCandidates(const PoseGraphNode &query_frame,
                                    const std::vector<PoseGraphNode> &keyframes);
 };
 }  // namespace kiss_matcher

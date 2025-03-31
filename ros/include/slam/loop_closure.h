@@ -19,7 +19,7 @@
 #include <small_gicp/pcl/pcl_registration.hpp>
 
 #include "rclcpp/rclcpp.hpp"
-#include "slam/loop_candidate.hpp"
+#include "slam/loop_types.hpp"
 #include "slam/pose_graph_node.hpp"
 #include "slam/utils.hpp"
 
@@ -64,7 +64,6 @@ class LoopClosure {
   std::shared_ptr<kiss_matcher::KISSMatcher> global_reg_handler_                        = nullptr;
   std::shared_ptr<small_gicp::RegistrationPCL<PointType, PointType>> local_reg_handler_ = nullptr;
 
-  int closest_keyframe_idx_ = -1;
   pcl::PointCloud<PointType>::Ptr src_cloud_;
   pcl::PointCloud<PointType>::Ptr tgt_cloud_;
   pcl::PointCloud<PointType>::Ptr coarse_aligned_;
@@ -74,12 +73,25 @@ class LoopClosure {
 
   rclcpp::Logger logger_;
 
+  std::chrono::steady_clock::time_point last_success_icp_time_;
+  bool has_success_icp_time_ = false;
+
  public:
   explicit LoopClosure(const LoopClosureConfig &config, const rclcpp::Logger &logger);
   ~LoopClosure();
   double calculateDistance(const Eigen::Matrix4d &pose1, const Eigen::Matrix4d &pose2);
-  LoopCandidate fetchClosestCandidate(const PoseGraphNode &query_frame,
-                                      const std::vector<PoseGraphNode> &keyframes);
+  LoopCandidates getLoopCandidatesFromQuery(const PoseGraphNode &query_frame,
+                                            const std::vector<PoseGraphNode> &keyframes);
+
+  LoopCandidate getClosestCandidate(const LoopCandidates &candidates);
+
+  LoopIdxPairs fetchClosestLoopCandidate(const PoseGraphNode &query_frame,
+                                         const std::vector<PoseGraphNode> &keyframes);
+  LoopIdxPairs fetchLoopCandidates(const PoseGraphNode &query_frame,
+                                   const std::vector<PoseGraphNode> &keyframes,
+                                   const size_t num_max_candidates  = 3,
+                                   const double reliable_window_sec = 30);
+
   NodePair setSrcAndTgtCloud(const std::vector<PoseGraphNode> &keyframes,
                              const size_t src_idx,
                              const size_t tgt_idx,
@@ -92,15 +104,15 @@ class LoopClosure {
                                   const pcl::PointCloud<PointType> &tgt);
   RegOutput performLoopClosure(const PoseGraphNode &query_keyframe,
                                const std::vector<PoseGraphNode> &keyframes);
-  RegOutput performLoopClosure(const PoseGraphNode &query_keyframe,
-                               const std::vector<PoseGraphNode> &keyframes,
-                               const int closest_keyframe_idx);
+  RegOutput performLoopClosure(const std::vector<PoseGraphNode> &keyframes,
+                               const size_t query_idx,
+                               const size_t match_idx);
+
   pcl::PointCloud<PointType> getSourceCloud();
   pcl::PointCloud<PointType> getTargetCloud();
   pcl::PointCloud<PointType> getCoarseAlignedCloud();
   pcl::PointCloud<PointType> getFinalAlignedCloud();
   pcl::PointCloud<PointType> getDebugCloud();
-  int getClosestKeyframeidx();
 };
 }  // namespace kiss_matcher
 #endif  // KISS_MATCHER_LOOP_CLOSURE_H
