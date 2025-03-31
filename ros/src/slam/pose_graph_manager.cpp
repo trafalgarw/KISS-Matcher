@@ -24,6 +24,7 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   map_update_hz          = declare_parameter<double>("map_update_hz", 0.2);
   vis_hz                 = declare_parameter<double>("vis_hz", 0.5);
 
+  store_voxelized_scan_            = declare_parameter<bool>("store_voxelized_scan", false);
   lc_config.voxel_res_             = declare_parameter<double>("voxel_resolution", 0.3);
   scan_voxel_res_                  = lc_config.voxel_res_;
   map_voxel_res_                   = declare_parameter<double>("map_voxel_resolution", 1.0);
@@ -183,7 +184,8 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
   static size_t latest_keyframe_idx = 0;
 
   Eigen::Matrix4d lastest_odom = current_frame_.pose_;
-  current_frame_               = PoseGraphNode(*odom_msg, *scan_msg, latest_keyframe_idx);
+  current_frame_               = PoseGraphNode(
+      *odom_msg, *scan_msg, latest_keyframe_idx, scan_voxel_res_, store_voxelized_scan_);
 
   kiss_matcher::TicToc total_timer;
   kiss_matcher::TicToc local_timer;
@@ -310,10 +312,19 @@ void PoseGraphManager::buildMap() {
       // NOTE(hlim): Building the full map causes RViz delay when keyframes > 500.
       // Since the map is for visualization only, we apply a heuristic to reduce cost.
       for (size_t i = start_idx; i < keyframes_.size(); ++i) {
-        if (keyframes_[i].voxelized_scan_.empty()) {
-          keyframes_[i].voxelized_scan_ = *voxelize(keyframes_[i].scan_, scan_voxel_res_);
-        }
-        *map_cloud_ += transformPcd(keyframes_[i].voxelized_scan_, keyframes_[i].pose_corrected_);
+        const auto &i_th_scan = [&]() {
+          // It's already voxelized
+          if (store_voxelized_scan_) {
+            return keyframes_[i].scan_;
+          }
+
+          if (keyframes_[i].voxelized_scan_.empty()) {
+            keyframes_[i].voxelized_scan_ = *voxelize(keyframes_[i].scan_, scan_voxel_res_);
+          }
+          return keyframes_[i].voxelized_scan_;
+        }();
+
+        *map_cloud_ += transformPcd(i_th_scan, keyframes_[i].pose_corrected_);
       }
 
       start_idx = keyframes_.size();

@@ -23,7 +23,9 @@ struct PoseGraphNode {
   inline PoseGraphNode(const nav_msgs::msg::Odometry &odom,
                        const sensor_msgs::msg::PointCloud2 &scan,
                        const size_t idx,
-                       const bool is_wrt_lidar_frame = false) {
+                       const double voxel_size,
+                       const bool store_voxelized_scan = false,
+                       const bool is_wrt_lidar_frame   = false) {
     tf2::Quaternion q;
     q.setX(odom.pose.pose.orientation.x);
     q.setY(odom.pose.pose.orientation.y);
@@ -45,6 +47,10 @@ struct PoseGraphNode {
     pcl::PointCloud<PointType> scan_tmp;
     pcl::fromROSMsg(scan, scan_tmp);
 
+    if (store_voxelized_scan) {
+      auto voxelized_scan = *voxelize(scan_tmp, voxel_size);
+      scan_tmp            = voxelized_scan;
+    }
     if (is_wrt_lidar_frame) {
       scan_ = scan_tmp;
     } else {
