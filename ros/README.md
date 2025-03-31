@@ -15,10 +15,9 @@
 
 ______________________________________________________________________
 
-# KISS-Matcher ROS2 Visualization
+# ROS2 KISS-Matcher SLAM & Registration
 
-This repository provides a ROS2-based visualization tool for KISS-Matcher registration results.
-It allows users to animate the transformation of a source point cloud to match a target point cloud.
+This repository provides a a) LiDAR SLAM using KISS-Matcher and b)ROS2-based visualization tool for KISS-Matcher registration results.
 
 ## :package: Prerequisites
 
@@ -40,16 +39,29 @@ Then, build the ROS2 package
 ```bash
 cd ${ROS2_WORKSPACE}
 colcon build --packages-select kiss_matcher_ros
-source install/setup.bash
 ```
+
+And then source your shell using `source install/setup.bash` or `source install/setup.zsh`.
+
+______________________________________________________________________
+
+## KISS-Matcher-SAM (KM-SAM) SLAM
+
+(Details going to be uploaded soon!)
+
+```bash
+ros2 launch kiss_matcher_ros run_kiss_matcher_sam.launch.yaml
+```
+
+______________________________________________________________________
+
+## KISS-Matcher Registraion Example
 
 Launch the visualization using the following command:
 
 ```bash
 ros2 launch kiss_matcher_ros visualizer_launch.py
 ```
-
-______________________________________________________________________
 
 ## 🛠 Configuration
 
