@@ -1,5 +1,5 @@
 <div align="center">
-    <h1>KISS-Matcher</h1>
+    <h1>KISS-Matcher-SAM</h1>
     <a href="https://github.com/MIT-SPARK/KISS-Matcher"><img src="https://img.shields.io/badge/-C++-blue?logo=cplusplus" /></a>
     <a href="https://github.com/MIT-SPARK/KISS-Matcher"><img src="https://img.shields.io/badge/Python-3670A0?logo=python&logoColor=ffdd54" /></a>
     <a href="https://github.com/MIT-SPARK/KISS-Matcher"><img src="https://img.shields.io/badge/ROS2-Humble-blue" /></a>
@@ -15,93 +15,37 @@
 
 ______________________________________________________________________
 
-# ROS2 KISS-Matcher SLAM & Registration
+## ROS2 KISS-Matcher-SAM
 
-This repository provides a a) LiDAR SLAM using KISS-Matcher and b)ROS2-based visualization tool for KISS-Matcher registration results.
-
-## :package: Prerequisites
-
-To run example codes, in addition to installation of KISS-Matcher (run `make cppinstall` first).
-
-If you only need to download example datasets, please use [download_datasets.py](https://github.com/kimdaebeom/KISS-Matcher/blob/main/python/utils/download_datasets.py).
+This repository provides LiDAR SLAM using KISS-Matcher.
+If you just want to **perform registration using ROS2**, see [README_ROS2_REGISTRATION.md](<>).
 
 ## :gear: How To Build & RUN
 
-First, you should install KISS-Matcher as follows:
-
-```
-cd ${MAIN_DIR_OF_KISS_MATCHER_REPOSITORY}
-make cppinstall
-```
-
-Then, build the ROS2 package
+1. Put this repository in your colcon workspace, and then build this repository as follows:
 
 ```bash
-cd ${ROS2_WORKSPACE}
+cd ${YOUR_ROS2_WORKSPACE}/src
+git clone https://github.com/MIT-SPARK/KISS-Matcher.git
+cd ..
 colcon build --packages-select kiss_matcher_ros
 ```
 
-And then source your shell using `source install/setup.bash` or `source install/setup.zsh`.
+And then source your workspace using `source install/setup.bash` or `source install/setup.zsh` depending on your shell.
 
-______________________________________________________________________
+2. Then, run the command below:
 
-## KISS-Matcher-SAM (KM-SAM) SLAM
-
-(Details going to be uploaded soon!)
-
-```bash
+```
 ros2 launch kiss_matcher_ros run_kiss_matcher_sam.launch.yaml
 ```
 
-______________________________________________________________________
+If you want to run it on your own dataset, make sure to set the `/cloud` and `/odom` topics appropriately using:
 
-## KISS-Matcher Registraion Example
-
-Launch the visualization using the following command:
-
-```bash
-ros2 launch kiss_matcher_ros visualizer_launch.py
+```
+ros2 launch kiss_matcher_ros run_kiss_matcher_sam.launch.yaml \
+  odom_topic:=<YOUR_TOPIC> scan_topic:=<YOUR_TOPIC>
 ```
 
-## 🛠 Configuration
+## How to Tune Parameters?
 
-You can customize the visualization parameters in **`config/params.yaml`** before launching the node.
-
-### **Example Configuration**
-
-```yaml
-registration_visualizer:
-  ros__parameters:
-    base_dir: "src/KISS-Matcher/cpp/examples/build/data/"
-
-    # Specify the source and target PCD files
-    src_pcd_path: "Vel64/kitti_000540.pcd"
-    tgt_pcd_path: "Vel64/kitti_001319.pcd"
-
-    # Registration settings
-    resolution: 0.2  # Voxel grid resolution
-    moving_rate: 200.0  # Animation steps
-    frame_rate: 30.0  # FPS for animation
-    scale_factor: 1.0  # Scale factor for the point cloud
-```
-
-### **Parameter Descriptions**
-
-| Parameter      | Description |
-|---------------|-------------|
-| `src_pcd_path`  | Path to the source PCD file |
-| `tgt_pcd_path`  | Path to the target PCD file |
-| `resolution`   | Voxel grid downsampling resolution |
-| `moving_rate`  | Number of animation steps of transition |
-| `frame_rate`   | Frames per second for animation in RViz |
-| `scale_factor`        | Scaling factor applied to the point clouds |
-
-______________________________________________________________________
-
-## 📌 Notes
-
-- Ensure your **PCD files** exist in the correct directory specified in `params.yaml`.
-- If visualization does not start, verify that **PCL and ROS2 dependencies** are correctly installed.
-- Modify the **frame rate (`frame_rate`) and animation steps (`moving_rate`)** for smoother visualization.
-
-Now, you can visualize **KISS-Matcher registration results** in ROS2! 🎉
+More details can be found in [config/slam_config.yaml](https://github.com/MIT-SPARK/KISS-Matcher/blob/main/ros/config/slam_config.yaml).
