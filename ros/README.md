@@ -91,6 +91,10 @@ ros2 launch kiss_matcher_ros run_kiss_matcher_sam.launch.yaml
 ros2 bag play 10_14_acl_jackal
 ```
 
+#### Qualitative mapping result
+
+![](https://github.com/user-attachments/assets/bd24f054-9818-426c-814c-4422e438727a)
+
 ### 🏟️ SLAM on the Colosseum
 
 1. Download `colosse_train0` from our [Dropbox](https://www.dropbox.com/scl/fo/i56kucdzxpzq1mr5jula7/ALJpdqvOZT1hTaQXEePCvyI?rlkey=y5bvslyazf09erko7gl0aylll&st=dh91zyho&dl=0).
