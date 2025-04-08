@@ -169,6 +169,12 @@ NodePair LoopClosure::setSrcAndTgtCloud(const std::vector<PoseGraphNode> &keyfra
   return {*voxelize(src_accum, voxel_res), *voxelize(tgt_accum, voxel_res)};
 }
 
+void LoopClosure::setSrcAndTgtCloud(const pcl::PointCloud<PointType> &src_cloud,
+                                    const pcl::PointCloud<PointType> &tgt_cloud) {
+  *src_cloud_ = src_cloud;
+  *tgt_cloud_ = tgt_cloud;
+}
+
 RegOutput LoopClosure::icpAlignment(const pcl::PointCloud<PointType> &src,
                                     const pcl::PointCloud<PointType> &tgt) {
   RegOutput reg_output;
@@ -232,7 +238,8 @@ RegOutput LoopClosure::coarseToFineAlignment(const pcl::PointCloud<PointType> &s
 
   *coarse_aligned_ = transformPcd(src, coarse_alignment);
 
-  const size_t num_inliers = global_reg_handler_->getNumFinalInliers();
+  const size_t num_inliers      = global_reg_handler_->getNumFinalInliers();
+  reg_output.num_final_inliers_ = num_inliers;
   if (config_.verbose_) {
     if (num_inliers > config_.num_inliers_threshold_) {
       RCLCPP_INFO(logger_,

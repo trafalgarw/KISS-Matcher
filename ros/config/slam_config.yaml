@@ -5,8 +5,6 @@
 # =====================================================================================
 /**:
   ros__parameters:
-    map_frame: "map"                 # Global map frame ID
-    base_frame: "base"               # Robot's base frame ID
     loop_pub_hz: 0.1                 # Frequency to publish loop closures (Hz)
     loop_detector_hz: 2.0            # Frequency to update loop by external loop detector (Hz)
     loop_nnsearch_hz: 2.0            # Frequency to update loop by nearest neighbor search (Hz)

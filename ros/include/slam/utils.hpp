@@ -3,6 +3,7 @@
 #ifndef KISS_MATCHER_UTILS_HPP
 #define KISS_MATCHER_UTILS_HPP
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,7 @@
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/time.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -168,12 +170,25 @@ inline geometry_msgs::msg::PoseStamped gtsamToPoseStamped(const gtsam::Pose3 &po
   return msg;
 }
 
+inline rclcpp::Time toRclcppTime(const double timestamp) {
+  int32_t sec      = static_cast<int32_t>(timestamp);
+  uint32_t nanosec = static_cast<uint32_t>((timestamp - sec) * 1e9);
+  return rclcpp::Time(sec, nanosec, RCL_ROS_TIME);
+}
+
 template <typename T>
-inline sensor_msgs::msg::PointCloud2 toROSMsg(const pcl::PointCloud<T> &cloud,
-                                              const std::string &frame_id = "map") {
+inline sensor_msgs::msg::PointCloud2 toROSMsg(
+    const pcl::PointCloud<T> &cloud,
+    const std::string &frame_id              = "map",
+    const std::optional<rclcpp::Time> &stamp = std::nullopt) {
   sensor_msgs::msg::PointCloud2 cloud_ros;
   pcl::toROSMsg(cloud, cloud_ros);
   cloud_ros.header.frame_id = frame_id;
+
+  if (stamp.has_value()) {
+    cloud_ros.header.stamp = stamp.value();
+  }
+
   return cloud_ros;
 }
 
