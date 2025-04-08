@@ -53,9 +53,9 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
   save_in_kitti_format_ = declare_parameter<bool>("result.save_in_kitti_format", false);
   seq_name_             = declare_parameter<std::string>("result.seq_name", "");
 
-  rclcpp::QoS qos(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
-  qos.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
+  rclcpp::QoS qos(1);
   qos.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
+  qos.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -76,26 +76,26 @@ PoseGraphManager::PoseGraphManager(const rclcpp::NodeOptions &options)
 
   // NOTE(hlim): To make this node compatible with being launched under different namespaces,
   // I deliberately avoided adding a '/' in front of the topic names.
-  path_pub_           = this->create_publisher<nav_msgs::msg::Path>("path/original", 10);
-  corrected_path_pub_ = this->create_publisher<nav_msgs::msg::Path>("path/corrected", 10);
-  map_pub_            = this->create_publisher<sensor_msgs::msg::PointCloud2>("global_map", 1);
-  scan_pub_           = this->create_publisher<sensor_msgs::msg::PointCloud2>("curr_scan", 10);
+  path_pub_           = this->create_publisher<nav_msgs::msg::Path>("path/original", qos);
+  corrected_path_pub_ = this->create_publisher<nav_msgs::msg::Path>("path/corrected", qos);
+  map_pub_            = this->create_publisher<sensor_msgs::msg::PointCloud2>("global_map", qos);
+  scan_pub_           = this->create_publisher<sensor_msgs::msg::PointCloud2>("curr_scan", qos);
   loop_detection_pub_ =
-      this->create_publisher<visualization_msgs::msg::Marker>("loop_detection", 10);
+      this->create_publisher<visualization_msgs::msg::Marker>("loop_detection", qos);
   loop_detection_radius_pub_ =
-      this->create_publisher<visualization_msgs::msg::Marker>("loop_detection_radius", 10);
+      this->create_publisher<visualization_msgs::msg::Marker>("loop_detection_radius", qos);
 
   // loop_closures_pub_ =
   // this->create_publisher<pose_graph_tools_msgs::msg::PoseGraph>("/hydra_ros_node/external_loop_closures",
   // 10);
-  realtime_pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose_stamped", 10);
-  debug_src_pub_     = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/src", 10);
-  debug_tgt_pub_     = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/tgt", 10);
+  realtime_pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose_stamped", qos);
+  debug_src_pub_     = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/src", qos);
+  debug_tgt_pub_     = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/tgt", qos);
   debug_coarse_aligned_pub_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/coarse_alignment", 10);
+      this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/coarse_alignment", qos);
   debug_fine_aligned_pub_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/fine_alignment", 10);
-  debug_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/debug_cloud", 10);
+      this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/fine_alignment", qos);
+  debug_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("lc/debug_cloud", qos);
 
   sub_odom_ = std::make_shared<message_filters::Subscriber<nav_msgs::msg::Odometry>>(this, "/odom");
   sub_scan_ =
@@ -183,14 +183,16 @@ void PoseGraphManager::callbackNode(const nav_msgs::msg::Odometry::ConstSharedPt
                                     const sensor_msgs::msg::PointCloud2::ConstSharedPtr &scan_msg) {
   static size_t latest_keyframe_idx = 0;
 
-  Eigen::Matrix4d lastest_odom = current_frame_.pose_;
+  // NOTE(hlim): For clarification, 'current' refers to the real-time incoming messages,
+  // while 'latest' indicates the last keyframe information already appended to keyframes_.
+  Eigen::Matrix4d current_odom = current_frame_.pose_;
   current_frame_               = PoseGraphNode(
       *odom_msg, *scan_msg, latest_keyframe_idx, scan_voxel_res_, store_voxelized_scan_);
 
   kiss_matcher::TicToc total_timer;
   kiss_matcher::TicToc local_timer;
 
-  visualizeCurrentData(lastest_odom, odom_msg->header.stamp, scan_msg->header.frame_id);
+  visualizeCurrentData(current_odom, odom_msg->header.stamp, scan_msg->header.frame_id);
 
   if (!is_initialized_) {
     keyframes_.push_back(current_frame_);
@@ -431,14 +433,14 @@ void PoseGraphManager::performRegistration() {
   RCLCPP_INFO(this->get_logger(), "Reg: %.1f msec", reg_timer.toc());
 }
 
-void PoseGraphManager::visualizeCurrentData(const Eigen::Matrix4d &lastest_odom,
+void PoseGraphManager::visualizeCurrentData(const Eigen::Matrix4d &current_odom,
                                             const rclcpp::Time &timestamp,
                                             const std::string &frame_id) {
   // NOTE(hlim): Instead of visualizing only when adding keyframes (node-wise), which can feel
   // choppy, we visualize the current frame every cycle to ensure smoother, real-time visualization.
   {
     std::lock_guard<std::mutex> lock(realtime_pose_mutex_);
-    odom_delta_                    = odom_delta_ * lastest_odom.inverse() * current_frame_.pose_;
+    odom_delta_                    = odom_delta_ * current_odom.inverse() * current_frame_.pose_;
     current_frame_.pose_corrected_ = last_corrected_pose_ * odom_delta_;
 
     geometry_msgs::msg::PoseStamped ps =
