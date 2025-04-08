@@ -333,7 +333,8 @@ void PoseGraphManager::buildMap() {
     }
 
     const auto &voxelized_map = voxelize(map_cloud_, map_voxel_res_);
-    map_pub_->publish(toROSMsg(*voxelized_map, map_frame_));
+    map_pub_->publish(
+        toROSMsg(*voxelized_map, map_frame_, toRclcppTime(keyframes_.back().timestamp_)));
   }
 
   if (need_map_update_) {
@@ -400,6 +401,7 @@ void PoseGraphManager::performRegistration() {
     }
 
     vis_loop_edges_.emplace_back(query_idx, match_idx);
+    succeeded_query_idx_   = query_idx;
     loop_closure_added_    = true;
     need_map_update_       = true;
     need_graph_vis_update_ = true;
@@ -462,8 +464,8 @@ void PoseGraphManager::visualizeCurrentData(const Eigen::Matrix4d &current_odom,
     tf_broadcaster_->sendTransform(transform_stamped);
   }
 
-  scan_pub_->publish(
-      toROSMsg(transformPcd(current_frame_.scan_, current_frame_.pose_corrected_), map_frame_));
+  scan_pub_->publish(toROSMsg(
+      transformPcd(current_frame_.scan_, current_frame_.pose_corrected_), map_frame_, timestamp));
   if (!corrected_path_.poses.empty()) {
     loop_detection_radius_pub_->publish(
         visualizeLoopDetectionRadius(corrected_path_.poses.back().pose.position));
@@ -514,11 +516,15 @@ void PoseGraphManager::visualizeLoopClosureClouds() {
     return;
   }
 
-  debug_src_pub_->publish(toROSMsg(loop_closure_->getSourceCloud(), map_frame_));
-  debug_tgt_pub_->publish(toROSMsg(loop_closure_->getTargetCloud(), map_frame_));
-  debug_fine_aligned_pub_->publish(toROSMsg(loop_closure_->getFinalAlignedCloud(), map_frame_));
-  debug_coarse_aligned_pub_->publish(toROSMsg(loop_closure_->getCoarseAlignedCloud(), map_frame_));
-  debug_cloud_pub_->publish(toROSMsg(loop_closure_->getDebugCloud(), map_frame_));
+  const auto &query_timestamp = toRclcppTime(keyframes_[succeeded_query_idx_].timestamp_);
+
+  debug_src_pub_->publish(toROSMsg(loop_closure_->getSourceCloud(), map_frame_, query_timestamp));
+  debug_tgt_pub_->publish(toROSMsg(loop_closure_->getTargetCloud(), map_frame_, query_timestamp));
+  debug_fine_aligned_pub_->publish(
+      toROSMsg(loop_closure_->getFinalAlignedCloud(), map_frame_, query_timestamp));
+  debug_coarse_aligned_pub_->publish(
+      toROSMsg(loop_closure_->getCoarseAlignedCloud(), map_frame_, query_timestamp));
+  debug_cloud_pub_->publish(toROSMsg(loop_closure_->getDebugCloud(), map_frame_, query_timestamp));
   need_lc_cloud_vis_update_ = false;
 }
 

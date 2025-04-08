@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 
@@ -46,6 +47,7 @@ class InterFrameAligner : public rclcpp::Node {
     target_frame_   = declare_parameter<std::string>("target_frame", "");
     world_frame_    = declare_parameter<std::string>("world", "world");
     frame_update_hz = declare_parameter<double>("frame_update_hz", 0.2);
+    tf_hz_          = declare_parameter<double>("tf_hz", 100.0);
 
     lc_config.voxel_res_ = declare_parameter<double>("voxel_resolution", 1.0);
     lc_config.verbose_   = declare_parameter<bool>("loop.verbose", false);
@@ -82,7 +84,7 @@ class InterFrameAligner : public rclcpp::Node {
         this->create_wall_timer(std::chrono::duration<double>(1.0 / frame_update_hz),
                                 std::bind(&InterFrameAligner::performAlignment, this));
 
-    tf_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / 100.0),
+    tf_timer_ = this->create_wall_timer(std::chrono::duration<double>(1.0 / tf_hz_),
                                         std::bind(&InterFrameAligner::publishTF, this));
 
     // 20 Hz is enough as long as it's faster than the full registration process.
@@ -105,6 +107,7 @@ class InterFrameAligner : public rclcpp::Node {
     }
     pcl::fromROSMsg(*msg, *source_cloud_);
     is_source_updated_ = true;
+    source_timestamp_  = rclcpp::Time(msg->header.stamp);
   }
 
   void callbackTarget(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
@@ -113,6 +116,7 @@ class InterFrameAligner : public rclcpp::Node {
     }
     pcl::fromROSMsg(*msg, *target_cloud_);
     is_target_updated_ = true;
+    target_timestamp_  = rclcpp::Time(msg->header.stamp);
   }
 
   void performAlignment() {
@@ -135,8 +139,8 @@ class InterFrameAligner : public rclcpp::Node {
     const double eps = 1e-6;
 
     if (!reg_output.is_valid_) {
-      RCLCPP_WARN(
-          this->get_logger(), "Alignment rejected. # of inliers: %.3f", reg_output.overlapness_);
+      RCLCPP_WARN_STREAM(this->get_logger(),
+                         "Alignment rejected. # of inliers: " << reg_output.num_final_inliers_);
     }
 
     target_T_source_ = reg_output.pose_;
@@ -170,11 +174,39 @@ class InterFrameAligner : public rclcpp::Node {
   }
 
   void publishTF() {
-    const auto &world_to_source_msg = createTransformStamped(
-        target_T_source_, world_frame_, source_frame_, this->get_clock()->now());
-    // This is fixed, i.e., the World frame == target's frame
-    static const auto &world_to_target_msg = createTransformStamped(
-        Eigen::Matrix4d::Identity(), world_frame_, target_frame_, this->get_clock()->now());
+    static bool has_warned_waiting_for_clouds = false;
+    if ((!source_timestamp_.has_value()) || (!target_timestamp_.has_value())) {
+      if (!has_warned_waiting_for_clouds) {
+        RCLCPP_WARN(this->get_logger(), "Waiting for map clouds...");
+        has_warned_waiting_for_clouds = true;
+      }
+      return;
+    }
+
+    // NOTE(hlim): To visualize real-time topics, such as current scans,
+    // we have to incrementally increase the timestamp
+    rclcpp::Time now = this->get_clock()->now();
+    if (!source_timestamp_base_.has_value() || *source_timestamp_ != *source_timestamp_base_) {
+      source_timestamp_base_ = source_timestamp_;
+      last_real_time_        = now;
+    }
+    if (!target_timestamp_base_.has_value() || *target_timestamp_ != *target_timestamp_base_) {
+      target_timestamp_base_ = target_timestamp_;
+      last_real_time_        = now;
+    }
+
+    rclcpp::Duration elapsed = now - last_real_time_;
+    if (elapsed.nanoseconds() < 0) {
+      elapsed = rclcpp::Duration::from_nanoseconds(0);
+    }
+
+    rclcpp::Time source_time = *source_timestamp_base_ + elapsed;
+    rclcpp::Time target_time = *target_timestamp_base_ + elapsed;
+
+    const auto &world_to_source_msg =
+        createTransformStamped(target_T_source_, world_frame_, source_frame_, source_time);
+    const auto &world_to_target_msg = createTransformStamped(
+        Eigen::Matrix4d::Identity(), world_frame_, target_frame_, target_time);
 
     tf_source_broadcaster_->sendTransform(world_to_source_msg);
     tf_target_broadcaster_->sendTransform(world_to_target_msg);
@@ -191,7 +223,7 @@ class InterFrameAligner : public rclcpp::Node {
     coarse_aligned_pub_->publish(
         toROSMsg(std::move(reg_module_->getCoarseAlignedCloud()), world_frame_));
 
-    RCLCPP_WARN(this->get_logger(), "Clouds published!");
+    RCLCPP_INFO(this->get_logger(), "Clouds published!");
     need_cloud_vis_update_ = false;
   }
 
@@ -205,6 +237,12 @@ class InterFrameAligner : public rclcpp::Node {
 
   pcl::PointCloud<PointType>::Ptr source_cloud_;
   pcl::PointCloud<PointType>::Ptr target_cloud_;
+
+  std::optional<rclcpp::Time> source_timestamp_;
+  std::optional<rclcpp::Time> source_timestamp_base_;
+  std::optional<rclcpp::Time> target_timestamp_;
+  std::optional<rclcpp::Time> target_timestamp_base_;
+  rclcpp::Time last_real_time_;
 
   bool verbose_ = false;
 
@@ -228,6 +266,7 @@ class InterFrameAligner : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr inter_alignment_timer_;
   rclcpp::TimerBase::SharedPtr cloud_vis_timer_;
   rclcpp::TimerBase::SharedPtr tf_timer_;
+  double tf_hz_;
 
   Eigen::Matrix4d target_T_source_ = Eigen::Matrix4d::Identity();
 };
