@@ -24,7 +24,7 @@
 #include "kiss_matcher/GncSolver.hpp"
 #include "kiss_matcher/ROBINMatching.hpp"
 #include "kiss_matcher/points/downsampling.hpp"
-#include "kiss_matcher/tsl/robin_map.h"
+#include "tsl/robin_map.h"
 
 namespace kiss_matcher {
 using KeypointPair = std::tuple<std::vector<Eigen::Vector3f>, std::vector<Eigen::Vector3f>>;

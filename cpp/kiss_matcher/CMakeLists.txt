@@ -5,6 +5,7 @@ option(USE_CCACHE "Build using Ccache if found on the path" ON)
 option(USE_SYSTEM_EIGEN3 "Use system pre-installed Eigen" ON)
 option(USE_SYSTEM_TBB "Use system pre-installed oneAPI/tbb" OFF)
 option(USE_SYSTEM_ROBIN "Use system pre-installed ROBIN from SPARK @ MIT" ON)
+option(USE_SYSTEM_TSL-ROBIN-MAP "Use system pre-installed tsl_robin" ON)
 option(USE_ADDRESS_SANITIZER "Use address sanitizer" OFF)
 
 # Set a default build type if none is specified
@@ -40,6 +41,7 @@ else (OPENMP_FOUND)
 endif (OPENMP_FOUND)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall ${CMAKE_CXX_FLAGS}")
 
+# add_subdirectory(core)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core)
 
 set(TARGET_NAME kiss_matcher_core)
@@ -52,7 +54,7 @@ add_library(${TARGET_NAME}
 add_library(kiss_matcher::kiss_matcher_core ALIAS kiss_matcher_core)
 
 target_link_libraries(${TARGET_NAME}
-    PUBLIC Eigen3::Eigen robin::robin ${OpenMP_LIBS} ${EIGEN3_LIBS} TBB::tbb ${LZ4_LIBRARY}
+    PUBLIC Eigen3::Eigen robin::robin tsl::robin_map ${OpenMP_LIBS} ${EIGEN3_LIBS} TBB::tbb ${LZ4_LIBRARY}
 )
 
 # To make kiss_matcher::core global for Pybinding
@@ -67,22 +69,22 @@ target_include_directories(${TARGET_NAME}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-install(TARGETS ${TARGET_NAME}
-    EXPORT ${PROJECT_NAME}-export
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+# install(TARGETS ${TARGET_NAME}
+#     EXPORT ${PROJECT_NAME}-export
+#     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+# )
 
-install(EXPORT ${PROJECT_NAME}-export
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-    NAMESPACE ${PROJECT_NAME}::
-    FILE ${PROJECT_NAME}Targets.cmake
-)
+# install(EXPORT ${PROJECT_NAME}-export
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+#     NAMESPACE ${PROJECT_NAME}::
+#     FILE ${PROJECT_NAME}Targets.cmake
+# )
 
-install(DIRECTORY core/kiss_matcher DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# install(DIRECTORY core/kiss_matcher DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-export(TARGETS ${MYPROJECT_EXPORTED_TARGETS} FILE ${PROJECT_NAME}-exports.cmake)
+# export(TARGETS ${MYPROJECT_EXPORTED_TARGETS} FILE ${PROJECT_NAME}-exports.cmake)
 
-install(FILES cmake/${PROJECT_NAME}Config.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
+# install(FILES cmake/${PROJECT_NAME}Config.cmake
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+# )

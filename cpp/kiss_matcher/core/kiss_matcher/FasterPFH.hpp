@@ -20,8 +20,8 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
-#include <kiss_matcher/tsl/robin_map.h>
-#include <kiss_matcher/tsl/robin_set.h>
+#include <tsl/robin_map.h>
+#include <tsl/robin_set.h>
 
 #include "kiss_matcher/kdtree/kdtree_tbb.hpp"
 #include "kiss_matcher/points/point_cloud.hpp"
